@@ -1,0 +1,244 @@
+// Data-access module — the single seam between the app and storage.
+//
+// Every read/write goes through the `Store` interface. v1 ships only `LocalStore`
+// (IndexedDB via Dexie). v2 can add a `RemoteStore` (cloud DB + auth) behind the
+// same interface without touching call sites. See docs/plan.md "Data".
+
+import Dexie from "dexie";
+import { getDb } from "./db";
+import { calendarKey } from "./format";
+import type {
+  BackupBlob,
+  LocationRef,
+  Setting,
+  StockCheck,
+  TrackedForecast,
+  TrackedStock,
+  WeatherCheck,
+} from "./types";
+
+export const HOME_LOCATION_KEY = "homeLocation";
+
+// Dexie key sentinels for open-ended compound-index range bounds.
+const MIN_KEY = Dexie.minKey;
+const MAX_KEY = Dexie.maxKey;
+
+export interface Store {
+  // --- stocks: registry ---
+  getTrackedStocks(): Promise<TrackedStock[]>;
+  addTrackedStock(symbol: string): Promise<void>;
+  removeTrackedStock(symbol: string): Promise<void>;
+
+  // --- stocks: append-only checks ---
+  appendStockChecks(checks: Array<Omit<StockCheck, "id">>): Promise<void>;
+  getStockChecks(symbol: string): Promise<StockCheck[]>; // ascending by checkedAt
+  getAllStockChecks(): Promise<StockCheck[]>;
+
+  // --- weather: home location + registry ---
+  getHomeLocation(): Promise<LocationRef | null>;
+  setHomeLocation(loc: LocationRef): Promise<void>;
+  getTrackedForecasts(): Promise<TrackedForecast[]>;
+  addTrackedForecast(loc: LocationRef, forecastDate: string): Promise<void>;
+  removeTrackedForecast(id: number): Promise<void>;
+  updateForecastGridUrl(location: string, gridUrl: string): Promise<void>;
+
+  // --- weather: append-only checks ---
+  appendWeatherChecks(checks: Array<Omit<WeatherCheck, "id">>): Promise<void>;
+  getWeatherChecks(location: string, calKey: string): Promise<WeatherCheck[]>;
+  getAllWeatherChecks(): Promise<WeatherCheck[]>;
+
+  // --- generic settings ---
+  getSetting<T = unknown>(key: string): Promise<T | undefined>;
+  setSetting(key: string, value: unknown): Promise<void>;
+
+  // --- backup ---
+  exportAll(): Promise<BackupBlob>;
+  importAll(blob: BackupBlob, mode: "replace" | "merge"): Promise<void>;
+}
+
+class LocalStore implements Store {
+  getTrackedStocks(): Promise<TrackedStock[]> {
+    return getDb().trackedStocks.orderBy("symbol").reverse().toArray();
+  }
+
+  async addTrackedStock(symbol: string): Promise<void> {
+    const s = symbol.trim().toUpperCase();
+    if (!s) return;
+    await getDb().trackedStocks.put({ symbol: s, addedAt: Date.now() });
+  }
+
+  async removeTrackedStock(symbol: string): Promise<void> {
+    // Deletes only the registry row; StockCheck history is left intact.
+    await getDb().trackedStocks.delete(symbol.trim().toUpperCase());
+  }
+
+  async appendStockChecks(
+    checks: Array<Omit<StockCheck, "id">>,
+  ): Promise<void> {
+    if (checks.length === 0) return;
+    await getDb().stockChecks.bulkAdd(checks as StockCheck[]);
+  }
+
+  getStockChecks(symbol: string): Promise<StockCheck[]> {
+    return getDb()
+      .stockChecks.where("[symbol+checkedAt]")
+      .between([symbol, MIN_KEY], [symbol, MAX_KEY])
+      .toArray();
+  }
+
+  getAllStockChecks(): Promise<StockCheck[]> {
+    return getDb().stockChecks.orderBy("checkedAt").toArray();
+  }
+
+  async getHomeLocation(): Promise<LocationRef | null> {
+    const row = await getDb().settings.get(HOME_LOCATION_KEY);
+    return row ? (row.value as LocationRef) : null;
+  }
+
+  async setHomeLocation(loc: LocationRef): Promise<void> {
+    await getDb().settings.put({ key: HOME_LOCATION_KEY, value: loc });
+  }
+
+  getTrackedForecasts(): Promise<TrackedForecast[]> {
+    return getDb().trackedForecasts.orderBy("addedAt").toArray();
+  }
+
+  async addTrackedForecast(
+    loc: LocationRef,
+    forecastDate: string,
+  ): Promise<void> {
+    const db = getDb();
+    const existing = await db.trackedForecasts
+      .where("[location+forecastDate]")
+      .equals([loc.name, forecastDate])
+      .first();
+    if (existing) return; // unique pin already present
+    await db.trackedForecasts.add({
+      location: loc.name,
+      latLong: loc.latLong,
+      forecastDate,
+      gridUrl: loc.gridUrl ?? "",
+      addedAt: Date.now(),
+    });
+  }
+
+  async removeTrackedForecast(id: number): Promise<void> {
+    // Deletes only the registry row; WeatherCheck history is left intact.
+    await getDb().trackedForecasts.delete(id);
+  }
+
+  async updateForecastGridUrl(
+    location: string,
+    gridUrl: string,
+  ): Promise<void> {
+    const db = getDb();
+    await db.trackedForecasts
+      .where("location")
+      .equals(location)
+      .modify({ gridUrl });
+  }
+
+  async appendWeatherChecks(
+    checks: Array<Omit<WeatherCheck, "id">>,
+  ): Promise<void> {
+    if (checks.length === 0) return;
+    await getDb().weatherChecks.bulkAdd(checks as WeatherCheck[]);
+  }
+
+  getWeatherChecks(location: string, calKey: string): Promise<WeatherCheck[]> {
+    // All checks for this location on this calendar date (both day and night).
+    return getDb()
+      .weatherChecks.where("[location+dateStr]")
+      .between([location, `${calKey}.0`], [location, `${calKey}.9`], true, true)
+      .toArray();
+  }
+
+  getAllWeatherChecks(): Promise<WeatherCheck[]> {
+    return getDb().weatherChecks.orderBy("checkedAt").toArray();
+  }
+
+  async getSetting<T = unknown>(key: string): Promise<T | undefined> {
+    const row = await getDb().settings.get(key);
+    return row ? (row.value as T) : undefined;
+  }
+
+  async setSetting(key: string, value: unknown): Promise<void> {
+    await getDb().settings.put({ key, value });
+  }
+
+  async exportAll(): Promise<BackupBlob> {
+    const db = getDb();
+    const [
+      stockChecks,
+      weatherChecks,
+      trackedStocks,
+      trackedForecasts,
+      settings,
+    ] = await Promise.all([
+      db.stockChecks.toArray(),
+      db.weatherChecks.toArray(),
+      db.trackedStocks.toArray(),
+      db.trackedForecasts.toArray(),
+      db.settings.toArray(),
+    ]);
+    return {
+      app: "last-i-checked",
+      version: 1,
+      exportedAt: Date.now(),
+      stockChecks,
+      weatherChecks,
+      trackedStocks,
+      trackedForecasts,
+      settings,
+    };
+  }
+
+  async importAll(
+    blob: BackupBlob,
+    mode: "replace" | "merge",
+  ): Promise<void> {
+    if (blob.app !== "last-i-checked") {
+      throw new Error("Not a Last I Checked backup file.");
+    }
+    const db = getDb();
+    await db.transaction(
+      "rw",
+      [
+        db.stockChecks,
+        db.weatherChecks,
+        db.trackedStocks,
+        db.trackedForecasts,
+        db.settings,
+      ],
+      async () => {
+        if (mode === "replace") {
+          await Promise.all([
+            db.stockChecks.clear(),
+            db.weatherChecks.clear(),
+            db.trackedStocks.clear(),
+            db.trackedForecasts.clear(),
+            db.settings.clear(),
+          ]);
+        }
+        // Drop ids so append-only rows re-key cleanly and never collide.
+        const strip = <T extends { id?: number }>(rows: T[]) =>
+          rows.map(({ id: _id, ...rest }) => rest as T);
+        await db.stockChecks.bulkAdd(strip(blob.stockChecks ?? []));
+        await db.weatherChecks.bulkAdd(strip(blob.weatherChecks ?? []));
+        await db.trackedStocks.bulkPut(blob.trackedStocks ?? []);
+        await db.trackedForecasts.bulkPut(
+          strip(blob.trackedForecasts ?? []) as TrackedForecast[],
+        );
+        await db.settings.bulkPut((blob.settings ?? []) as Setting[]);
+      },
+    );
+  }
+}
+
+/** The app-wide store handle. Swap the implementation here for v2. */
+export const store: Store = new LocalStore();
+
+/** Convenience: today's calendar key ("YYYYMMDD"). */
+export function today(): string {
+  return calendarKey(new Date());
+}

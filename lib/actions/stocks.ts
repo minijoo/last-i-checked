@@ -5,7 +5,12 @@
 import type { Result, StockQuote, SymbolInfo } from "@/lib/types";
 
 const DATA_BASE = "https://data.alpaca.markets";
-const TRADING_BASE = "https://api.alpaca.markets";
+// Live keys authenticate here; paper keys (PK… prefix) need the paper host. We
+// try live first and fall back, so either key type works for the name lookup.
+const TRADING_BASES = [
+  "https://api.alpaca.markets",
+  "https://paper-api.alpaca.markets",
+];
 
 function creds(): { key: string; secret: string } | null {
   const key = process.env.ALPACA_API_KEY_ID;
@@ -79,28 +84,39 @@ export async function lookupSymbol(
   if (!/^[A-Z.\-]{1,10}$/.test(s)) {
     return { ok: false, error: "That doesn't look like a ticker symbol." };
   }
-  try {
-    const res = await fetch(`${TRADING_BASE}/v2/assets/${s}`, {
-      headers: authHeaders(c),
-      cache: "no-store",
-    });
-    if (res.status === 404) {
-      return { ok: false, error: `No US equity found for "${s}".` };
-    }
-    if (!res.ok) {
+  let lastStatus = "";
+  for (const base of TRADING_BASES) {
+    try {
+      const res = await fetch(`${base}/v2/assets/${s}`, {
+        headers: authHeaders(c),
+        cache: "no-store",
+      });
+      if (res.status === 404) {
+        return { ok: false, error: `No US equity found for "${s}".` };
+      }
+      if (res.status === 401 || res.status === 403) {
+        lastStatus = `${res.status} ${res.statusText}`;
+        continue; // wrong host for this key type — try the next base
+      }
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: `Alpaca responded ${res.status} ${res.statusText}`,
+        };
+      }
+      const asset = (await res.json()) as { symbol: string; name?: string };
+      return { ok: true, info: { symbol: asset.symbol, name: asset.name ?? s } };
+    } catch (e) {
       return {
         ok: false,
-        error: `Alpaca responded ${res.status} ${res.statusText}`,
+        error: e instanceof Error ? e.message : "Network error contacting Alpaca",
       };
     }
-    const asset = (await res.json()) as { symbol: string; name?: string };
-    return { ok: true, info: { symbol: asset.symbol, name: asset.name ?? s } };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "Network error contacting Alpaca",
-    };
   }
+  return {
+    ok: false,
+    error: `Alpaca rejected the API keys (${lastStatus}). Check ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY.`,
+  };
 }
 
 interface AlpacaBar {

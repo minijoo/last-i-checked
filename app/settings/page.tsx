@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { DevPanel } from "@/components/DevPanel";
 import { LocationSearch } from "@/components/LocationSearch";
 import { Button, Card, SectionTitle } from "@/components/ui";
 import { useHomeLocation } from "@/lib/hooks";
@@ -42,6 +43,8 @@ export default function SettingsPage() {
       </section>
 
       <BackupSection />
+
+      {process.env.NODE_ENV === "development" && <DevPanel />}
     </div>
   );
 }

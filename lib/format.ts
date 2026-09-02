@@ -13,13 +13,6 @@ export function formatDelta(n: number, digits = 2): string {
   return `${sign}${Math.abs(n).toFixed(digits)}`;
 }
 
-export function deltaDirection(n: number | null): "up" | "down" | "flat" | "none" {
-  if (n === null) return "none";
-  if (n > 0) return "up";
-  if (n < 0) return "down";
-  return "flat";
-}
-
 export function formatTemp(n: number, unit: string): string {
   return `${Math.round(n)}°${unit}`;
 }

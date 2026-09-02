@@ -3,6 +3,7 @@
 
 import { fetchForecast } from "./actions/weather";
 import { fetchStockQuotes } from "./actions/stocks";
+import { jitterValue, nowForCheck } from "./devtime";
 import { todayCalendarKeys } from "./format";
 import { store } from "./store";
 import type { LocationRef } from "./types";
@@ -21,11 +22,11 @@ export async function runStockFetch(): Promise<FetchOutcome> {
   const res = await fetchStockQuotes(tracked.map((t) => t.symbol));
   if (!res.ok) return { added: 0, errors: [res.error] };
 
-  const now = Date.now();
+  const now = nowForCheck();
   const checks = res.quotes.map((q) => ({
     checkedAt: now,
     symbol: q.symbol,
-    price: q.price,
+    price: jitterValue(q.price),
   }));
   await store.appendStockChecks(checks);
 
@@ -73,7 +74,7 @@ export async function runWeatherFetch(): Promise<FetchOutcome> {
   }
   if (locs.size === 0) return { added: 0, errors: [] };
 
-  const now = Date.now();
+  const now = nowForCheck();
   const errors: string[] = [];
   let added = 0;
 
@@ -96,7 +97,7 @@ export async function runWeatherFetch(): Promise<FetchOutcome> {
         dateStr: p.dateStr,
         location: name,
         latLong: ref.latLong,
-        temp: p.temp,
+        temp: jitterValue(p.temp),
         tempUnit: p.tempUnit,
         rainProb: p.rainProb,
         skyCond: p.skyCond,

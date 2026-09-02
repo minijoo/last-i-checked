@@ -222,7 +222,11 @@ class LocalStore implements Store {
         }
         // Drop ids so append-only rows re-key cleanly and never collide.
         const strip = <T extends { id?: number }>(rows: T[]) =>
-          rows.map(({ id: _id, ...rest }) => rest as T);
+          rows.map((row) => {
+            const copy = { ...row };
+            delete copy.id;
+            return copy;
+          });
         await db.stockChecks.bulkAdd(strip(blob.stockChecks ?? []));
         await db.weatherChecks.bulkAdd(strip(blob.weatherChecks ?? []));
         await db.trackedStocks.bulkPut(blob.trackedStocks ?? []);

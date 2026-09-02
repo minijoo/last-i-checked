@@ -28,7 +28,10 @@ interface Entry {
   location: string;
   calKey: string;
   showLocation?: boolean;
+  note?: string;
 }
+
+const MS_DAY = 86_400_000;
 
 function dayLabel(calKey: string) {
   return parseCalendarKey(calKey).toLocaleDateString(undefined, {
@@ -36,6 +39,19 @@ function dayLabel(calKey: string) {
     month: "short",
     day: "numeric",
   });
+}
+
+/** Why a pinned date has no data: it's outside the NWS forecast horizon. */
+function horizonNote(calKey: string): string | undefined {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round(
+    (parseCalendarKey(calKey).getTime() - today.getTime()) / MS_DAY,
+  );
+  if (days < 0) return "past date — NWS has no forecast for it";
+  if (days > 7)
+    return `${days} days out — beyond NWS's ~7-day forecast; fills in as it gets closer`;
+  return undefined;
 }
 
 function WeatherTable({
@@ -61,13 +77,20 @@ function WeatherTable({
         out.push({
           id: `${e.location}-${e.calKey}-${suffix}`,
           label: (
-            <Link
-              href={`/weather/day?loc=${encodeURIComponent(e.location)}&date=${e.calKey}`}
-              className="hover:underline"
-            >
-              {e.showLocation ? `${e.location} · ` : ""}
-              {dayLabel(e.calKey)} · {tag}
-            </Link>
+            <span className="flex flex-col">
+              <Link
+                href={`/weather/day?loc=${encodeURIComponent(e.location)}&date=${e.calKey}`}
+                className="hover:underline"
+              >
+                {e.showLocation ? `${e.location} · ` : ""}
+                {dayLabel(e.calKey)} · {tag}
+              </Link>
+              {tag === "Day" && e.note && (
+                <span className="mt-0.5 text-xs font-normal text-muted">
+                  {e.note}
+                </span>
+              )}
+            </span>
           ),
           subset,
         });
@@ -119,6 +142,7 @@ export default function WeatherPage() {
     location: p.location,
     calKey: p.forecastDate,
     showLocation: true,
+    note: horizonNote(p.forecastDate),
   }));
 
   return (
@@ -268,6 +292,9 @@ function PinForm() {
           Pin
         </Button>
       </div>
+      {date && horizonNote(date.replace(/-/g, "")) && (
+        <p className="text-xs text-muted">{horizonNote(date.replace(/-/g, ""))}</p>
+      )}
       {msg && <p className="text-xs text-up">{msg}</p>}
     </div>
   );

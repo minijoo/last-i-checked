@@ -1,19 +1,106 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { NumMatrix, TextMatrix } from "@/components/CheckMatrix";
 import { FetchBar } from "@/components/FetchBar";
 import { LocationSearch } from "@/components/LocationSearch";
-import { WeatherCard } from "@/components/WeatherCard";
 import { Button, Card, SectionTitle } from "@/components/ui";
 import { HOME_WINDOW_DAYS, runWeatherFetch } from "@/lib/fetchers";
-import { todayCalendarKeys } from "@/lib/format";
+import { parseCalendarKey, todayCalendarKeys } from "@/lib/format";
 import {
   useAllWeatherChecks,
   useHomeLocation,
   useTrackedForecasts,
 } from "@/lib/hooks";
 import { store } from "@/lib/store";
-import { VIEW_LABELS, type WeatherView } from "@/lib/weather-view";
+import type { WeatherCheck } from "@/lib/types";
+import {
+  fmtRain,
+  fmtTemp,
+  numColumnsFor,
+  skyColumnsFor,
+  VIEW_LABELS,
+  type WeatherView,
+} from "@/lib/weather-view";
+
+interface Entry {
+  location: string;
+  calKey: string;
+  showLocation?: boolean;
+}
+
+function dayLabel(calKey: string) {
+  return parseCalendarKey(calKey).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function WeatherTable({
+  entries,
+  checks,
+  view,
+}: {
+  entries: Entry[];
+  checks: WeatherCheck[];
+  view: WeatherView;
+}) {
+  const rows = useMemo(() => {
+    const out: { id: string; label: React.ReactNode; subset: WeatherCheck[] }[] =
+      [];
+    for (const e of entries) {
+      for (const [suffix, tag] of [
+        [".0", "Day"],
+        [".1", "Night"],
+      ] as const) {
+        const subset = checks.filter(
+          (c) => c.location === e.location && c.dateStr === `${e.calKey}${suffix}`,
+        );
+        out.push({
+          id: `${e.location}-${e.calKey}-${suffix}`,
+          label: (
+            <Link
+              href={`/weather/day?loc=${encodeURIComponent(e.location)}&date=${e.calKey}`}
+              className="hover:underline"
+            >
+              {e.showLocation ? `${e.location} · ` : ""}
+              {dayLabel(e.calKey)} · {tag}
+            </Link>
+          ),
+          subset,
+        });
+      }
+    }
+    return out;
+  }, [entries, checks]);
+
+  const unit = checks.find((c) => c.tempUnit)?.tempUnit ?? "F";
+
+  if (view === "sky") {
+    return (
+      <TextMatrix
+        rows={rows.map((r) => ({
+          id: r.id,
+          label: r.label,
+          columns: skyColumnsFor(r.subset),
+        }))}
+      />
+    );
+  }
+  return (
+    <NumMatrix
+      rows={rows.map((r) => ({
+        id: r.id,
+        label: r.label,
+        columns: numColumnsFor(r.subset, view),
+      }))}
+      format={view === "temp" ? fmtTemp(unit) : fmtRain}
+      digits={0}
+    />
+  );
+}
 
 export default function WeatherPage() {
   const home = useHomeLocation();
@@ -24,6 +111,15 @@ export default function WeatherPage() {
   const loading =
     home === undefined || pins === undefined || checks === undefined;
   const windowKeys = todayCalendarKeys(HOME_WINDOW_DAYS);
+
+  const homeEntries: Entry[] = home
+    ? windowKeys.map((k) => ({ location: home.name, calKey: k }))
+    : [];
+  const pinEntries: Entry[] = (pins ?? []).map((p) => ({
+    location: p.location,
+    calKey: p.forecastDate,
+    showLocation: true,
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -58,17 +154,13 @@ export default function WeatherPage() {
               Home {home ? `· ${home.name}` : "(not set)"}
             </SectionTitle>
             {home ? (
-              <>
-                {windowKeys.map((k) => (
-                  <WeatherCard
-                    key={k}
-                    location={home.name}
-                    calKey={k}
-                    view={view}
-                    checks={checks}
-                  />
-                ))}
-              </>
+              <Card>
+                <WeatherTable
+                  entries={homeEntries}
+                  checks={checks}
+                  view={view}
+                />
+              </Card>
             ) : (
               <Card>
                 <p className="mb-2 text-sm text-muted">
@@ -91,22 +183,38 @@ export default function WeatherPage() {
               </p>
               <PinForm />
             </Card>
-            {pins.length === 0 ? (
+            {pinEntries.length === 0 ? (
               <p className="text-sm text-muted">Nothing pinned.</p>
             ) : (
-              pins.map((p) => (
-                <WeatherCard
-                  key={p.id}
-                  location={p.location}
-                  calKey={p.forecastDate}
-                  view={view}
+              <Card>
+                <WeatherTable
+                  entries={pinEntries}
                   checks={checks}
-                  pinned
-                  onUnpin={() => p.id != null && store.removeTrackedForecast(p.id)}
+                  view={view}
                 />
-              ))
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(pins ?? []).map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() =>
+                        p.id != null && store.removeTrackedForecast(p.id)
+                      }
+                      className="text-xs text-muted hover:text-down"
+                      title="Unpin (keeps history)"
+                    >
+                      unpin {p.location} · {dayLabel(p.forecastDate)}
+                    </button>
+                  ))}
+                </div>
+              </Card>
             )}
           </section>
+
+          <p className="text-xs text-muted">
+            Columns are the days you fetched. A blank cell means no check that day.
+            Deltas compare each row against its own previous check; sky shows
+            changed / same.
+          </p>
         </>
       )}
     </div>
@@ -114,18 +222,18 @@ export default function WeatherPage() {
 }
 
 function PinForm() {
-  const [loc, setLoc] = useState<{ name: string; latLong: [number, number] } | null>(
-    null,
-  );
+  const [loc, setLoc] = useState<{
+    name: string;
+    latLong: [number, number];
+  } | null>(null);
   const [date, setDate] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
   async function add() {
     if (!loc || !date) return;
-    const calKey = date.replace(/-/g, "");
     await store.addTrackedForecast(
       { name: loc.name, latLong: loc.latLong },
-      calKey,
+      date.replace(/-/g, ""),
     );
     setMsg(`Pinned ${loc.name} on ${date}.`);
     setDate("");

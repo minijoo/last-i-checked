@@ -4,12 +4,6 @@ import type { WeatherCheck } from "./types";
 
 export type WeatherView = "day" | "night" | "rain";
 
-export const VIEW_LABELS: Record<WeatherView, string> = {
-  day: "Day temp",
-  night: "Night temp",
-  rain: "Rain",
-};
-
 function pick(view: WeatherView): (c: WeatherCheck) => number {
   if (view === "day") return (c) => c.tempDay;
   if (view === "night") return (c) => c.tempNight;

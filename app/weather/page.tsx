@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { NumMatrix } from "@/components/CheckMatrix";
 import { FetchBar } from "@/components/FetchBar";
 import { LocationSearch } from "@/components/LocationSearch";
 import { Button, Card, SectionTitle } from "@/components/ui";
+import {
+  type WeatherLane,
+  WeatherMatrix,
+  type WeatherRow,
+} from "@/components/WeatherMatrix";
 import { HOME_WINDOW_DAYS, runWeatherFetch } from "@/lib/fetchers";
 import { parseCalendarKey, todayCalendarKeys } from "@/lib/format";
 import {
@@ -15,29 +19,26 @@ import {
 } from "@/lib/hooks";
 import { store } from "@/lib/store";
 import type { WeatherCheck } from "@/lib/types";
-import {
-  fmtRainInches,
-  fmtTemp,
-  numColumnsFor,
-  VIEW_LABELS,
-  type WeatherView,
-} from "@/lib/weather-view";
+import { fmtRainInches, fmtTemp, numColumnsFor } from "@/lib/weather-view";
+
+/** Home-table views. "temp" folds day + night into one table as AM/PM lanes. */
+const HOME_VIEWS = { temp: "Temp", rain: "Rain" } as const;
+type HomeView = keyof typeof HOME_VIEWS;
 
 interface Entry {
   location: string;
   calKey: string;
-  showLocation?: boolean;
-  note?: string;
 }
 
 const MS_DAY = 86_400_000;
 
-function dayLabel(calKey: string) {
-  return parseCalendarKey(calKey).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+/** Row-header date, split across two lines: "Sep 11" over a short weekday. */
+function rowDate(calKey: string): { md: string; wd: string } {
+  const d = parseCalendarKey(calKey);
+  return {
+    md: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    wd: d.toLocaleDateString(undefined, { weekday: "short" }),
+  };
 }
 
 /** Note for a pinned date the standard forecast won't cover. */
@@ -60,42 +61,46 @@ function WeatherTable({
 }: {
   entries: Entry[];
   checks: WeatherCheck[];
-  view: WeatherView;
+  view: HomeView;
 }) {
-  const rows = useMemo(() => {
-    return entries.map((e) => ({
-      id: `${e.location}-${e.calKey}`,
-      label: (
-        <span className="flex flex-col">
+  const rows = useMemo<WeatherRow[]>(() => {
+    return entries.map((e) => {
+      const { md, wd } = rowDate(e.calKey);
+      const subset = checks.filter(
+        (c) => c.location === e.location && c.dateStr === e.calKey,
+      );
+      const lanes: WeatherLane[] =
+        view === "rain"
+          ? [{ key: "rain", columns: numColumnsFor(subset, "rain") }]
+          : [
+              { key: "day", label: "AM", columns: numColumnsFor(subset, "day") },
+              {
+                key: "night",
+                label: "PM",
+                columns: numColumnsFor(subset, "night"),
+              },
+            ];
+      return {
+        id: `${e.location}-${e.calKey}`,
+        label: (
           <Link
             href={`/weather/day?loc=${encodeURIComponent(e.location)}&date=${e.calKey}`}
-            className="hover:underline"
+            className="flex flex-col leading-tight hover:underline"
           >
-            {e.showLocation ? `${e.location} · ` : ""}
-            {dayLabel(e.calKey)}
+            <span>{md}</span>
+            <span className="text-xs font-normal text-muted">{wd}</span>
           </Link>
-          {e.note && (
-            <span className="mt-0.5 text-xs font-normal text-muted">
-              {e.note}
-            </span>
-          )}
-        </span>
-      ),
-      subset: checks.filter(
-        (c) => c.location === e.location && c.dateStr === e.calKey,
-      ),
-    }));
-  }, [entries, checks]);
+        ),
+        lanes,
+      };
+    });
+  }, [entries, checks, view]);
 
   const unit = checks.find((c) => c.tempUnit)?.tempUnit ?? "F";
 
   return (
-    <NumMatrix
-      rows={rows.map((r) => ({
-        id: r.id,
-        label: r.label,
-        columns: numColumnsFor(r.subset, view),
-      }))}
+    <WeatherMatrix
+      rows={rows}
       format={view === "rain" ? fmtRainInches : fmtTemp(unit)}
       digits={view === "rain" ? 2 : 0}
     />
@@ -106,7 +111,7 @@ export default function WeatherPage() {
   const home = useHomeLocation();
   const pins = useTrackedForecasts();
   const checks = useAllWeatherChecks();
-  const [view, setView] = useState<WeatherView>("day");
+  const [view, setView] = useState<HomeView>("temp");
 
   const loading =
     home === undefined || pins === undefined || checks === undefined;
@@ -115,12 +120,6 @@ export default function WeatherPage() {
   const homeEntries: Entry[] = home
     ? windowKeys.map((k) => ({ location: home.name, calKey: k }))
     : [];
-  const pinEntries: Entry[] = (pins ?? []).map((p) => ({
-    location: p.location,
-    calKey: p.forecastDate,
-    showLocation: true,
-    note: horizonNote(p.forecastDate),
-  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -135,13 +134,13 @@ export default function WeatherPage() {
       </div>
 
       <div className="flex gap-1">
-        {(Object.keys(VIEW_LABELS) as WeatherView[]).map((v) => (
+        {(Object.keys(HOME_VIEWS) as HomeView[]).map((v) => (
           <Button
             key={v}
             variant={view === v ? "solid" : "outline"}
             onClick={() => setView(v)}
           >
-            {VIEW_LABELS[v]}
+            {HOME_VIEWS[v]}
           </Button>
         ))}
       </div>
@@ -185,30 +184,42 @@ export default function WeatherPage() {
               </p>
               <PinForm />
             </Card>
-            {pinEntries.length === 0 ? (
+            {(pins ?? []).length === 0 ? (
               <p className="text-sm text-muted">Nothing pinned.</p>
             ) : (
-              <Card>
-                <WeatherTable
-                  entries={pinEntries}
-                  checks={checks}
-                  view={view}
-                />
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(pins ?? []).map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() =>
-                        p.id != null && store.removeTrackedForecast(p.id)
-                      }
-                      className="text-xs text-muted hover:text-down"
-                      title="Unpin (keeps history)"
-                    >
-                      unpin {p.location} · {dayLabel(p.forecastDate)}
-                    </button>
-                  ))}
-                </div>
-              </Card>
+              (pins ?? []).map((p) => {
+                const note = horizonNote(p.forecastDate);
+                return (
+                  <Card key={p.id ?? `${p.location}-${p.forecastDate}`}>
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="flex flex-col">
+                        <h3 className="text-sm font-semibold">{p.location}</h3>
+                        {note && (
+                          <span className="mt-0.5 text-xs text-muted">
+                            {note}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() =>
+                          p.id != null && store.removeTrackedForecast(p.id)
+                        }
+                        className="shrink-0 text-xs text-muted hover:text-down"
+                        title="Unpin (keeps history)"
+                      >
+                        unpin
+                      </button>
+                    </div>
+                    <WeatherTable
+                      entries={[
+                        { location: p.location, calKey: p.forecastDate },
+                      ]}
+                      checks={checks}
+                      view={view}
+                    />
+                  </Card>
+                );
+              })
             )}
           </section>
 

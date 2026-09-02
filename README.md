@@ -26,9 +26,9 @@ Other scripts: `npm run build`, `npm test` (bucketing logic), `npm run typecheck
 
 Restart the dev server after editing `.env.local`.
 
-The OpenWeather 16-day forecast and One Call 3.0 `day_summary` endpoints require an
-active paid subscription on the key (the "One Call by Call" plan — 1000 calls/day
-included, then ~$0.15 per 100). A 401/402 surfaces a "subscription required" message.
+The OpenWeather One Call 4.0 `timeline/1day` and One Call 3.0 `day_summary` endpoints
+require an active paid subscription on the key (the "One Call by Call" plan — 1000
+calls/day included, then ~$0.15 per 100). A 401/402 surfaces a "subscription required" message.
 
 ## How it works
 
@@ -38,9 +38,9 @@ included, then ~$0.15 per 100). A 401/402 surfaces a "subscription required" mes
 - **Delta baseline.** History is bucketed (one calendar day for stocks, one half-day
   for weather); a bucket's value is its last check, and each column's delta is vs. the
   next-older column. Mashing *Fetch* can't dilute the deltas. See `lib/buckets.ts`.
-- **Weather.** OpenWeather, global. A rolling 16-day home window from the daily
-  forecast; pinned dates further out come from `day_summary` estimates. Each date has
-  a day temp, night temp, and rain amount (mm stored, inches shown).
+- **Weather.** OpenWeather, global. A rolling 10-day home window from one
+  `timeline/1day` call; pinned dates further out come from `day_summary` estimates.
+  Each date has a day temp, night temp, and rain amount (mm stored, inches shown).
 - **Storage seam.** Everything goes through `lib/store.ts` (`Store` interface,
   `LocalStore` impl). v2's cloud sync swaps the implementation, not the call sites.
 - **Backup.** Settings → Export/Import JSON. The only recovery path in v1.

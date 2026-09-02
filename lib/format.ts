@@ -66,6 +66,19 @@ export function calKeyToIso(key: string): string {
   return `${key.slice(0, 4)}-${key.slice(4, 6)}-${key.slice(6, 8)}`;
 }
 
+/**
+ * "YYYYMMDD" from a Unix-seconds timestamp, read in UTC. OpenWeather's
+ * timeline/1day stamps each day at 00:00 UTC and the date part is the forecast
+ * date for that location regardless of the request point.
+ */
+export function calendarKeyFromUnixUTC(dtSeconds: number): string {
+  const d = new Date(dtSeconds * 1000);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
+}
+
 export function todayCalendarKeys(count: number): string[] {
   const out: string[] = [];
   const base = new Date();

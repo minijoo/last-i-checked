@@ -1,14 +1,33 @@
 // Client-side orchestration for the "Fetch" buttons: pull current data from the
 // external APIs (via server actions) and append checks through the store.
 
-import { fetchDaySummaries } from "./actions/weather";
+import { fetchDaySummaries, fetchTimeline } from "./actions/weather";
 import { fetchStockQuotes } from "./actions/stocks";
 import { jitterValue, nowForCheck } from "./devtime";
 import { calKeyToIso, todayCalendarKeys } from "./format";
 import { store } from "./store";
-import type { LocationRef, WeatherCheck } from "./types";
+import type { DailyWeather, LocationRef, WeatherCheck } from "./types";
 
-export const HOME_WINDOW_DAYS = 16;
+export const HOME_WINDOW_DAYS = 10;
+
+function toRow(
+  now: number,
+  location: string,
+  ref: LocationRef,
+  d: DailyWeather,
+): Omit<WeatherCheck, "id"> {
+  return {
+    checkedAt: now,
+    dateStr: d.calKey,
+    location,
+    latLong: ref.latLong,
+    tempDay: jitterValue(d.tempDay),
+    tempNight: jitterValue(d.tempNight),
+    tempUnit: "F",
+    rainAmt: d.rainAmt,
+    source: d.source,
+  };
+}
 
 export interface FetchOutcome {
   added: number;
@@ -66,38 +85,46 @@ export async function runWeatherFetch(): Promise<FetchOutcome> {
   let added = 0;
 
   for (const [name, { ref, wanted }] of locs) {
-    // Skip past dates entirely — the row stays until the user unpins it.
-    const dates = [...wanted]
-      .filter((k) => k >= today)
-      .sort()
-      .map((k) => ({
-        isoDate: calKeyToIso(k),
-        source: (k <= windowEnd ? "forecast" : "summary") as
-          | "forecast"
-          | "summary",
-      }));
-    if (dates.length === 0) continue;
-
     const [lat, lon] = ref.latLong;
-    const results = await fetchDaySummaries(lat, lon, dates);
+    // Past dates are skipped entirely — the row stays until the user unpins it.
+    const inWindow = new Set(
+      [...wanted].filter((k) => k >= today && k <= windowEnd),
+    );
+    const beyond = [...wanted].filter((k) => k > windowEnd).sort();
+    if (inWindow.size === 0 && beyond.length === 0) continue;
+
     const rows: Array<Omit<WeatherCheck, "id">> = [];
-    for (const res of results) {
+
+    if (inWindow.size > 0) {
+      const res = await fetchTimeline(lat, lon); // one call → 10 days
       if (!res.ok) {
         errors.push(`${name}: ${res.error}`);
-        continue;
+      } else {
+        for (const d of res.days) {
+          if (!inWindow.has(d.calKey)) continue;
+          rows.push(toRow(now, name, ref, d));
+        }
       }
-      rows.push({
-        checkedAt: now,
-        dateStr: res.day.calKey,
-        location: name,
-        latLong: ref.latLong,
-        tempDay: jitterValue(res.day.tempDay),
-        tempNight: jitterValue(res.day.tempNight),
-        tempUnit: "F",
-        rainAmt: res.day.rainAmt,
-        source: res.day.source,
-      });
     }
+
+    if (beyond.length > 0) {
+      const results = await fetchDaySummaries(
+        lat,
+        lon,
+        beyond.map((k) => ({
+          isoDate: calKeyToIso(k),
+          source: "summary" as const,
+        })),
+      );
+      for (const res of results) {
+        if (!res.ok) {
+          errors.push(`${name}: ${res.error}`);
+          continue;
+        }
+        rows.push(toRow(now, name, ref, res.day));
+      }
+    }
+
     await store.appendWeatherChecks(rows);
     added += rows.length;
   }

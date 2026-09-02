@@ -95,15 +95,15 @@ the cliff feels wrong in practice.
 ## Screens / Flows
 
 - Weather page
-    - Assuming the home location is set, by default, today's date and each of the 15 days
-      following it are rendered onto the screen — a rolling 16-day window.
+    - Assuming the home location is set, by default, today's date and each of the 9 days
+      following it are rendered onto the screen — a rolling 10-day window.
       (`mockups/weather-home.png`)
     - Any date for any location (i.e. location-date pair) can be added for tracking
       (`mockups/weather-add.png`). This writes a `TrackedForecast` row (`forecastDate` =
-      `YYYYMMDD`). Dates within the 16-day window come from the standard forecast; dates
+      `YYYYMMDD`). Dates within the 10-day window come from the timeline forecast; dates
       further out are filled from OpenWeather's `day_summary` estimate. Past dates fetch
       nothing and show a note prompting the user to unpin.
-    - The home location's today + 15 days are a rolling, derived view — not
+    - The home location's today + 9 days are a rolling, derived view — not
       `TrackedForecast` rows. Only explicitly pinned dates are registry rows.
     - Untracking a location-date deletes only its `TrackedForecast` row; past
       `WeatherCheck` rows are kept.
@@ -161,19 +161,19 @@ _High-level only; details go in `docs/schema.md`._
   temperatures come back in Fahrenheit; precipitation is always mm regardless).
   Global coverage. Needs an active "One Call by Call" subscription (1000 calls/day
   included, then ~$0.15 per 100, no hard cap).
-    - **Every tracked date — One Call 3.0 day summary**, one call per date:
+    - **Dates within the 10-day window — One Call 4.0 timeline (1-day step):**
+      `GET https://api.openweathermap.org/data/4.0/onecall/timeline/1day?lat={lat}&lon={lon}&units=imperial&appid={key}`
+      One call returns exactly 10 days, `data[0]` = today. Each `data[x]` has `dt`
+      (00:00 UTC of the forecast date — take year/month/day from the **UTC** date
+      regardless of the request point), `temp.day`, `temp.night`, `rain` (mm, absent
+      ⇒ 0). `source: "forecast"`.
+    - **Dates past the 10-day window — One Call 3.0 day summary**, one call per date:
       `GET https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={lat}&lon={lon}&date={YYYY-MM-DD}&units=imperial&appid={key}`
       Use `temperature.afternoon` (day), `temperature.night` (night),
-      `precipitation.total` (mm). day_summary covers near-future dates (live forecast
-      aggregate) as well as long-range (statistical estimate), so it's the single
-      source. Fetch a location's dates in parallel server-side.
-    - The standalone "Daily Forecast 16 Days" (`data/2.5/forecast/daily`) would cut
-      the home window to one call, but it's a separate paid product the key doesn't
-      carry (401s). Revisit if that subscription is added — `source` on each
-      `WeatherCheck` already marks in-horizon vs long-range.
-    - `source` = `"forecast"` when the date is within `HOME_WINDOW_DAYS`, `"summary"`
-      when it's further out. (Same endpoint either way for now; the field records the
-      horizon so the UI can badge long-range dates as estimates.)
+      `precipitation.total` (mm). `source: "summary"`.
+    - Per tracked date: within `HOME_WINDOW_DAYS` ⇒ take it from the single timeline
+      call; further out ⇒ one `day_summary` call each (in parallel per location).
+      Past dates fetch nothing.
 - Geocoding: OpenWeather Geo API
     - `GET https://api.openweathermap.org/geo/1.0/direct?q={query}&limit={n}&appid={key}`
     - Response entries carry `name`, `lat`, `lon`, `country`, optional `state`. Display
@@ -190,13 +190,14 @@ _High-level only; details go in `docs/schema.md`._
   → `rainAmt` (OpenWeather precipitation total, mm stored / inches shown). Sky
   condition dropped entirely. `WeatherCheck` no longer splits a date into day/night
   rows — one row per date with both temps.
-- **16-day home window** (`HOME_WINDOW_DAYS = 16`). Every tracked date is fetched via
-  One Call 3.0 `day_summary` (one call each); dates past the window are long-range
-  estimates. The standalone 16-day daily endpoint isn't on the key. **Past-dated pins
-  fetch nothing** — the row sits there with a "past date — unpin when done" note.
+- **10-day home window** (`HOME_WINDOW_DAYS = 10`). In-window dates come from a single
+  One Call 4.0 `timeline/1day` call (10 days, `data[0]` = today, dates keyed by the
+  UTC `dt`); dates past the window use `day_summary`, one call each, marked as
+  estimates. **Past-dated pins fetch nothing** — the row sits there with a "past date
+  — unpin when done" note.
 - **Fahrenheit by default** — `units=imperial` on every OpenWeather call.
 - **Rolling weather window stays derived.** Only date+location pairs the user actively
-  adds become `TrackedForecast` rows; the home location's today + 15 days are never
+  adds become `TrackedForecast` rows; the home location's today + 9 days are never
   auto-pinned.
 - **One data-access module** fronts all storage (see Data), so v2's cloud/sync layer
   swaps one implementation instead of rewriting call sites.
@@ -210,9 +211,9 @@ _High-level only; details go in `docs/schema.md`._
   now.
 - Migrating storage to a cloud DB (MongoDB Atlas or similar) — revisit in v2 alongside
   cloud sync / accounts.
-- OpenWeather's 16-day daily forecast and One Call 3.0 endpoints need an active paid
-  subscription on the API key. If a call 401/402s, surface a clear "subscription
-  required" message the way the Alpaca-keys path does.
+- OpenWeather's One Call 4.0 timeline and One Call 3.0 day_summary endpoints need an
+  active paid subscription on the API key. If a call 401/402s, surface a clear
+  "subscription required" message the way the Alpaca-keys path does.
 - Past-date pins are inert (no fetch, just a note). Could auto-expire them instead of
   waiting for a manual unpin — deferred.
 

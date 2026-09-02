@@ -87,6 +87,6 @@ untouched. Bump the `weatherGen` constant again if `WeatherCheck` ever changes s
 - The `[symbol+checkedAt]` / `[location+dateStr]` compound indexes are the
   graph-query access path (all checks for one item, roughly in time order — the
   graph still sorts by `checkedAt` in memory).
-- The home-location rolling window (today + 15 days, a 16-day window) is **derived**,
+- The home-location rolling window (today + 9 days, a 10-day window) is **derived**,
   not stored in `TrackedForecast`; only explicitly pinned dates get a registry row.
   (Open: revisit if rolling days should auto-pin.)

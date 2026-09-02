@@ -9,17 +9,18 @@ export interface StockCheck {
   price: number; // price at this fetch
 }
 
-/** One row per fetch, per (location, date, day|night). Append-only. */
+/** One row per fetch, per (location, date). Append-only. */
 export interface WeatherCheck {
   id?: number; // auto-increment PK
   checkedAt: number; // epoch ms
-  dateStr: string; // "YYYYMMDD.X" — X is 0 (day) or 1 (night); sorts lexicographically
+  dateStr: string; // "YYYYMMDD" — calendar date; sorts lexicographically
   location: string; // canonical display name of the forecast location
   latLong: [number, number]; // [lat, long]
-  temp: number;
-  tempUnit: string; // "F" | "C"
-  rainProb: number; // precip probability %, 0-100 (NWS probabilityOfPrecipitation)
-  skyCond: string; // NWS shortForecast text
+  tempDay: number; // °F — OpenWeather temp.day / day_summary temperature.afternoon
+  tempNight: number; // °F — OpenWeather temp.night / day_summary temperature.night
+  tempUnit: string; // always "F"
+  rainAmt: number; // precipitation total for the date, in mm (as OpenWeather returns it)
+  source: "forecast" | "summary"; // 16-day daily forecast, or day_summary
 }
 
 /** Registry: stock symbols the user is tracking right now. */
@@ -33,8 +34,7 @@ export interface TrackedForecast {
   id?: number; // auto-increment PK
   location: string; // canonical display name (matches WeatherCheck.location)
   latLong: [number, number]; // [lat, long]
-  forecastDate: string; // "YYYYMMDD" — calendar date only, no .X suffix
-  gridUrl: string; // cached NWS /gridpoints forecast URL for this point
+  forecastDate: string; // "YYYYMMDD" — calendar date
   addedAt: number; // epoch ms
 }
 
@@ -46,9 +46,8 @@ export interface Setting {
 
 /** A resolved place: what geocoding returns and what we store for a location. */
 export interface LocationRef {
-  name: string; // canonical display name, e.g. "Denver, Colorado"
+  name: string; // canonical display name, e.g. "Austin, Texas, US"
   latLong: [number, number];
-  gridUrl?: string; // cached NWS forecast URL once resolved
 }
 
 // ---- External-API payloads (server action results) ----
@@ -63,22 +62,19 @@ export interface SymbolInfo {
   name: string;
 }
 
-/** One NWS forecast period, normalized. */
-export interface ForecastPeriod {
+/** One day of weather, normalized from either OpenWeather endpoint. */
+export interface DailyWeather {
   calKey: string; // "YYYYMMDD" — location-local date
-  isNight: boolean;
-  dateStr: string; // "YYYYMMDD.X"
-  name: string; // "Monday", "Monday Night"
-  temp: number;
-  tempUnit: string; // "F" | "C"
-  rainProb: number; // 0-100
-  skyCond: string; // shortForecast
+  tempDay: number; // °F
+  tempNight: number; // °F
+  rainAmt: number; // mm
+  source: "forecast" | "summary";
 }
 
 export interface GeoResult {
-  name: string; // "Denver, Colorado"
+  name: string; // display name, e.g. "Austin, Texas, US"
   latLong: [number, number];
-  country: string; // ISO-2, always "US" after filtering
+  country: string; // ISO-2 country code
 }
 
 export type Result<T> = ({ ok: true } & T) | { ok: false; error: string };

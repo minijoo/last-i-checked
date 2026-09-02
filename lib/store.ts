@@ -23,6 +23,34 @@ export const HOME_LOCATION_KEY = "homeLocation";
 const MIN_KEY = Dexie.minKey;
 const MAX_KEY = Dexie.maxKey;
 
+// One-time guard: the NWS→OpenWeather switch changed WeatherCheck fields (no
+// index change, so no Dexie version bump). Drop rows written under an older shape.
+// Bump this string if WeatherCheck changes shape again.
+//
+// This runs once at module load (browser only), NOT inside a query — Dexie's
+// useLiveQuery runs its querier read-only and would throw on the write. Live
+// queries re-fire after the clear via Dexie observability, so the UI corrects
+// itself on first load after an upgrade.
+const WEATHER_GEN = "openweather-1";
+let weatherReadyPromise: Promise<void> | null = null;
+
+function weatherReady(): Promise<void> {
+  if (!weatherReadyPromise) {
+    weatherReadyPromise = (async () => {
+      const db = getDb();
+      const row = await db.settings.get("weatherGen");
+      if (row?.value === WEATHER_GEN) return;
+      await db.weatherChecks.clear();
+      await db.settings.put({ key: "weatherGen", value: WEATHER_GEN });
+    })();
+  }
+  return weatherReadyPromise;
+}
+
+if (typeof indexedDB !== "undefined") {
+  void weatherReady();
+}
+
 export interface Store {
   // --- stocks: registry ---
   getTrackedStocks(): Promise<TrackedStock[]>;
@@ -40,7 +68,6 @@ export interface Store {
   getTrackedForecasts(): Promise<TrackedForecast[]>;
   addTrackedForecast(loc: LocationRef, forecastDate: string): Promise<void>;
   removeTrackedForecast(id: number): Promise<void>;
-  updateForecastGridUrl(location: string, gridUrl: string): Promise<void>;
 
   // --- weather: append-only checks ---
   appendWeatherChecks(checks: Array<Omit<WeatherCheck, "id">>): Promise<void>;
@@ -117,7 +144,6 @@ class LocalStore implements Store {
       location: loc.name,
       latLong: loc.latLong,
       forecastDate,
-      gridUrl: loc.gridUrl ?? "",
       addedAt: Date.now(),
     });
   }
@@ -127,29 +153,18 @@ class LocalStore implements Store {
     await getDb().trackedForecasts.delete(id);
   }
 
-  async updateForecastGridUrl(
-    location: string,
-    gridUrl: string,
-  ): Promise<void> {
-    const db = getDb();
-    await db.trackedForecasts
-      .where("location")
-      .equals(location)
-      .modify({ gridUrl });
-  }
-
   async appendWeatherChecks(
     checks: Array<Omit<WeatherCheck, "id">>,
   ): Promise<void> {
     if (checks.length === 0) return;
+    await weatherReady();
     await getDb().weatherChecks.bulkAdd(checks as WeatherCheck[]);
   }
 
   getWeatherChecks(location: string, calKey: string): Promise<WeatherCheck[]> {
-    // All checks for this location on this calendar date (both day and night).
     return getDb()
       .weatherChecks.where("[location+dateStr]")
-      .between([location, `${calKey}.0`], [location, `${calKey}.9`], true, true)
+      .equals([location, calKey])
       .toArray();
   }
 

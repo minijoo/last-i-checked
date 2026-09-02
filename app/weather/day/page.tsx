@@ -2,23 +2,16 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useMemo } from "react";
+import { Suspense } from "react";
 import { CheckGraph } from "@/components/CheckGraph";
 import { DeltaColumns } from "@/components/DeltaColumns";
 import { FetchBar } from "@/components/FetchBar";
-import { SkyColumns } from "@/components/SkyColumns";
 import { Card, SectionTitle } from "@/components/ui";
 import { runWeatherFetch } from "@/lib/fetchers";
-import { parseCalendarKey } from "@/lib/format";
+import { mmToInches, parseCalendarKey } from "@/lib/format";
 import { useWeatherChecks } from "@/lib/hooks";
-import {
-  fmtRain,
-  fmtTemp,
-  numColumnsFor,
-  skyColumnsFor,
-  splitDayNight,
-} from "@/lib/weather-view";
 import type { WeatherCheck } from "@/lib/types";
+import { fmtRainInches, fmtTemp, numColumnsFor } from "@/lib/weather-view";
 
 export default function WeatherDayPage() {
   return (
@@ -42,14 +35,12 @@ function DayView() {
       })
     : "";
 
-  const { day, night } = useMemo(
-    () => splitDayNight(checks ?? []),
-    [checks],
-  );
-
   if (!location || !calKey) {
     return <p className="text-sm text-down">Missing location or date.</p>;
   }
+
+  const estimated = (checks ?? []).some((c) => c.source === "summary");
+  const unit = checks?.[0]?.tempUnit ?? "F";
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,7 +54,10 @@ function DayView() {
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">{location}</h1>
-            <p className="mt-1 text-sm text-muted">{dateLabel}</p>
+            <p className="mt-1 text-sm text-muted">
+              {dateLabel}
+              {estimated && " · estimated (day summary)"}
+            </p>
           </div>
           <FetchBar onFetch={runWeatherFetch} label="Fetch forecasts" />
         </div>
@@ -79,54 +73,69 @@ function DayView() {
         </Card>
       ) : (
         <>
-          <HalfDay label="Day" checks={day} />
-          <HalfDay label="Night" checks={night} />
+          <Metric
+            title="Day temperature"
+            checks={checks}
+            value={(c) => c.tempDay}
+            format={fmtTemp(unit)}
+            graphUnit={`°${unit}`}
+            digits={0}
+          />
+          <Metric
+            title="Night temperature"
+            checks={checks}
+            value={(c) => c.tempNight}
+            format={fmtTemp(unit)}
+            graphUnit={`°${unit}`}
+            digits={0}
+          />
+          <Metric
+            title="Rain"
+            checks={checks}
+            value={(c) => mmToInches(c.rainAmt)}
+            metric="rain"
+            format={fmtRainInches}
+            graphUnit={'"'}
+            digits={2}
+          />
         </>
       )}
     </div>
   );
 }
 
-function HalfDay({ label, checks }: { label: string; checks: WeatherCheck[] }) {
-  const unit = checks[0]?.tempUnit ?? "F";
-  if (checks.length === 0) {
-    return (
-      <section className="flex flex-col gap-2">
-        <SectionTitle>{label}</SectionTitle>
-        <p className="text-sm text-muted">No {label.toLowerCase()} checks.</p>
-      </section>
-    );
-  }
+function Metric({
+  title,
+  checks,
+  value,
+  metric = "day",
+  format,
+  graphUnit,
+  digits,
+}: {
+  title: string;
+  checks: WeatherCheck[];
+  value: (c: WeatherCheck) => number;
+  metric?: "day" | "night" | "rain";
+  format: (n: number) => string;
+  graphUnit: string;
+  digits: number;
+}) {
   return (
     <section className="flex flex-col gap-3">
-      <SectionTitle>{label}</SectionTitle>
+      <SectionTitle>{title}</SectionTitle>
       <Card>
         <CheckGraph
-          points={checks.map((c) => ({ t: c.checkedAt, v: c.temp }))}
-          unit={`°${unit}`}
-          digits={0}
+          points={checks.map((c) => ({ t: c.checkedAt, v: value(c) }))}
+          unit={graphUnit}
+          digits={digits}
         />
       </Card>
-      <div className="flex flex-col gap-1">
-        <div className="text-xs font-medium text-muted">Temperature</div>
-        <DeltaColumns
-          columns={numColumnsFor(checks, "temp")}
-          format={fmtTemp(unit)}
-          digits={0}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <div className="text-xs font-medium text-muted">Rain probability</div>
-        <DeltaColumns
-          columns={numColumnsFor(checks, "rain")}
-          format={fmtRain}
-          digits={0}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <div className="text-xs font-medium text-muted">Sky</div>
-        <SkyColumns columns={skyColumnsFor(checks)} />
-      </div>
+      <DeltaColumns
+        columns={numColumnsFor(checks, metric)}
+        format={format}
+        digits={digits}
+      />
     </section>
   );
 }

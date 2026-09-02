@@ -5,10 +5,10 @@ import { searchLocations } from "@/lib/actions/geocode";
 import type { GeoResult } from "@/lib/types";
 import { Input } from "./ui";
 
-/** Debounced US-city autocomplete backed by the geocode server action. */
+/** Debounced global city autocomplete backed by the geocode server action. */
 export function LocationSearch({
   onSelect,
-  placeholder = "Search a US city…",
+  placeholder = "Search a city…",
 }: {
   onSelect: (g: GeoResult) => void;
   placeholder?: string;
@@ -39,7 +39,7 @@ export function LocationSearch({
         if (res.ok) {
           setResults(res.results);
           setOpen(true);
-          setError(res.results.length === 0 ? "No US matches." : null);
+          setError(res.results.length === 0 ? "No matches." : null);
         } else {
           setResults([]);
           setError(res.error);

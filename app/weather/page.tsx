@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { NumMatrix, TextMatrix } from "@/components/CheckMatrix";
+import { NumMatrix } from "@/components/CheckMatrix";
 import { FetchBar } from "@/components/FetchBar";
 import { LocationSearch } from "@/components/LocationSearch";
 import { Button, Card, SectionTitle } from "@/components/ui";
@@ -16,10 +16,9 @@ import {
 import { store } from "@/lib/store";
 import type { WeatherCheck } from "@/lib/types";
 import {
-  fmtRain,
+  fmtRainInches,
   fmtTemp,
   numColumnsFor,
-  skyColumnsFor,
   VIEW_LABELS,
   type WeatherView,
 } from "@/lib/weather-view";
@@ -41,16 +40,16 @@ function dayLabel(calKey: string) {
   });
 }
 
-/** Why a pinned date has no data: it's outside the NWS forecast horizon. */
+/** Note for a pinned date the standard forecast won't cover. */
 function horizonNote(calKey: string): string | undefined {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const days = Math.round(
     (parseCalendarKey(calKey).getTime() - today.getTime()) / MS_DAY,
   );
-  if (days < 0) return "past date — NWS has no forecast for it";
-  if (days > 7)
-    return `${days} days out — beyond NWS's ~7-day forecast; fills in as it gets closer`;
+  if (days < 0) return "past date — no data is fetched; unpin when done";
+  if (days >= HOME_WINDOW_DAYS)
+    return `${days} days out — estimated (OpenWeather day summary)`;
   return undefined;
 }
 
@@ -64,54 +63,32 @@ function WeatherTable({
   view: WeatherView;
 }) {
   const rows = useMemo(() => {
-    const out: { id: string; label: React.ReactNode; subset: WeatherCheck[] }[] =
-      [];
-    for (const e of entries) {
-      for (const [suffix, tag] of [
-        [".0", "Day"],
-        [".1", "Night"],
-      ] as const) {
-        const subset = checks.filter(
-          (c) => c.location === e.location && c.dateStr === `${e.calKey}${suffix}`,
-        );
-        out.push({
-          id: `${e.location}-${e.calKey}-${suffix}`,
-          label: (
-            <span className="flex flex-col">
-              <Link
-                href={`/weather/day?loc=${encodeURIComponent(e.location)}&date=${e.calKey}`}
-                className="hover:underline"
-              >
-                {e.showLocation ? `${e.location} · ` : ""}
-                {dayLabel(e.calKey)} · {tag}
-              </Link>
-              {tag === "Day" && e.note && (
-                <span className="mt-0.5 text-xs font-normal text-muted">
-                  {e.note}
-                </span>
-              )}
+    return entries.map((e) => ({
+      id: `${e.location}-${e.calKey}`,
+      label: (
+        <span className="flex flex-col">
+          <Link
+            href={`/weather/day?loc=${encodeURIComponent(e.location)}&date=${e.calKey}`}
+            className="hover:underline"
+          >
+            {e.showLocation ? `${e.location} · ` : ""}
+            {dayLabel(e.calKey)}
+          </Link>
+          {e.note && (
+            <span className="mt-0.5 text-xs font-normal text-muted">
+              {e.note}
             </span>
-          ),
-          subset,
-        });
-      }
-    }
-    return out;
+          )}
+        </span>
+      ),
+      subset: checks.filter(
+        (c) => c.location === e.location && c.dateStr === e.calKey,
+      ),
+    }));
   }, [entries, checks]);
 
   const unit = checks.find((c) => c.tempUnit)?.tempUnit ?? "F";
 
-  if (view === "sky") {
-    return (
-      <TextMatrix
-        rows={rows.map((r) => ({
-          id: r.id,
-          label: r.label,
-          columns: skyColumnsFor(r.subset),
-        }))}
-      />
-    );
-  }
   return (
     <NumMatrix
       rows={rows.map((r) => ({
@@ -119,8 +96,8 @@ function WeatherTable({
         label: r.label,
         columns: numColumnsFor(r.subset, view),
       }))}
-      format={view === "temp" ? fmtTemp(unit) : fmtRain}
-      digits={0}
+      format={view === "rain" ? fmtRainInches : fmtTemp(unit)}
+      digits={view === "rain" ? 2 : 0}
     />
   );
 }
@@ -129,7 +106,7 @@ export default function WeatherPage() {
   const home = useHomeLocation();
   const pins = useTrackedForecasts();
   const checks = useAllWeatherChecks();
-  const [view, setView] = useState<WeatherView>("temp");
+  const [view, setView] = useState<WeatherView>("day");
 
   const loading =
     home === undefined || pins === undefined || checks === undefined;
@@ -151,7 +128,7 @@ export default function WeatherPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Weather</h1>
           <p className="mt-1 text-sm text-muted">
-            How the forecast has shifted since you last checked. US only (NWS).
+            How the forecast has shifted since you last checked.
           </p>
         </div>
         <FetchBar onFetch={runWeatherFetch} label="Fetch forecasts" />
@@ -203,7 +180,8 @@ export default function WeatherPage() {
             <SectionTitle>Pinned dates</SectionTitle>
             <Card>
               <p className="mb-2 text-sm text-muted">
-                Pin any US city + date to track it beyond the home window.
+                Pin any city + date to track it beyond the {HOME_WINDOW_DAYS}-day
+                home window.
               </p>
               <PinForm />
             </Card>
@@ -236,8 +214,7 @@ export default function WeatherPage() {
 
           <p className="text-xs text-muted">
             Columns are the days you fetched. A blank cell means no check that day.
-            Deltas compare each row against its own previous check; sky shows
-            changed / same.
+            Deltas compare each row against its own previous check.
           </p>
         </>
       )}
@@ -263,6 +240,8 @@ function PinForm() {
     setDate("");
     setLoc(null);
   }
+
+  const dateNote = date ? horizonNote(date.replace(/-/g, "")) : undefined;
 
   return (
     <div className="flex flex-col gap-2">
@@ -292,9 +271,7 @@ function PinForm() {
           Pin
         </Button>
       </div>
-      {date && horizonNote(date.replace(/-/g, "")) && (
-        <p className="text-xs text-muted">{horizonNote(date.replace(/-/g, ""))}</p>
-      )}
+      {dateNote && <p className="text-xs text-muted">{dateNote}</p>}
       {msg && <p className="text-xs text-up">{msg}</p>}
     </div>
   );

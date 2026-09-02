@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { NumColumn, TextColumn } from "@/lib/buckets";
+import type { NumColumn } from "@/lib/buckets";
 import { formatStamp } from "@/lib/format";
 import { unionAxis } from "@/lib/matrix";
 import { Delta } from "./Delta";
@@ -8,12 +8,6 @@ export interface NumRow {
   id: string;
   label: ReactNode;
   columns: NumColumn[]; // newest first, from toColumns()
-}
-
-export interface TextRow {
-  id: string;
-  label: ReactNode;
-  columns: TextColumn[];
 }
 
 const cellBlank = <span className="text-muted">·</span>;
@@ -99,56 +93,6 @@ export function NumMatrix({
                   </div>
                   <div className="text-xs">
                     <Delta value={cell.delta} digits={digits} />
-                  </div>
-                </td>
-              );
-            })}
-          </tr>
-        );
-      })}
-    </Shell>
-  );
-}
-
-/** Consolidated text table (sky condition): changed / same instead of a delta. */
-export function TextMatrix({
-  rows,
-  maxCols = 6,
-}: {
-  rows: TextRow[];
-  maxCols?: number;
-}) {
-  const axis = unionAxis(
-    rows.map((r) => r.columns),
-    maxCols,
-  );
-  return (
-    <Shell axis={axis}>
-      {rows.map((r) => {
-        const byKey = new Map(r.columns.map((c) => [c.key, c]));
-        return (
-          <tr key={r.id} className="border-t border-border">
-            <th className={rowHeadClass}>{r.label}</th>
-            {axis.map((c) => {
-              const cell = byKey.get(c.key);
-              if (!cell) {
-                return (
-                  <td key={c.key} className="px-2 py-2 text-center">
-                    {cellBlank}
-                  </td>
-                );
-              }
-              return (
-                <td key={c.key} className="px-2 py-2 text-center align-top">
-                  <div className="leading-snug">{cell.value}</div>
-                  <div className="text-xs">
-                    {cell.changed === null ? (
-                      <span className="text-muted">—</span>
-                    ) : cell.changed ? (
-                      <span className="text-foreground">changed</span>
-                    ) : (
-                      <span className="text-muted">same</span>
-                    )}
                   </div>
                 </td>
               );

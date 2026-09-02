@@ -1,110 +1,77 @@
 "use server";
 
-// National Weather Service proxy. NWS needs no key but requires a User-Agent.
-// Two-step: /points/{lat},{lon} -> grid forecast URL -> /forecast.
-// The grid mapping is static per point, so callers cache the returned gridUrl.
-// See docs/plan.md "External Data-Sources".
+// OpenWeather proxy. Keeps the API key server-side. See docs/plan.md.
+//
+// Every tracked date is fetched with One Call 3.0 `day_summary` (one call per
+// date). The standalone "16 Day Daily Forecast" (data/2.5) is a separate paid
+// product our key doesn't carry; day_summary covers near-future dates too, so it
+// is the single source. `units=imperial` for Fahrenheit; precipitation is mm.
 
-import type { ForecastPeriod, Result } from "@/lib/types";
+import type { DailyWeather, Result } from "@/lib/types";
 
-const UA =
-  process.env.NWS_USER_AGENT ??
-  "last-i-checked/0.1 (local development; set NWS_USER_AGENT)";
+const KEY = () => process.env.OPENWEATHER_API_KEY;
+const NO_KEY =
+  "OPENWEATHER_API_KEY not set. Add it to .env.local and restart the dev server.";
 
-function nwsHeaders() {
-  return { "User-Agent": UA, Accept: "application/geo+json" };
+function subscriptionError(status: number): string {
+  return `OpenWeather responded ${status} — the API key needs an active One Call by Call subscription.`;
 }
 
-export async function resolveGridUrl(
+/** One date's summary. `isoDate` is "YYYY-MM-DD". `source` marks horizon, not endpoint. */
+export async function fetchDaySummary(
   lat: number,
   lon: number,
-): Promise<Result<{ gridUrl: string }>> {
+  isoDate: string,
+  source: "forecast" | "summary" = "summary",
+): Promise<Result<{ day: DailyWeather }>> {
+  const key = KEY();
+  if (!key) return { ok: false, error: NO_KEY };
+
+  const url =
+    `https://api.openweathermap.org/data/3.0/onecall/day_summary` +
+    `?lat=${lat}&lon=${lon}&date=${isoDate}&units=imperial&appid=${key}`;
   try {
-    const res = await fetch(
-      `https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`,
-      { headers: nwsHeaders(), next: { revalidate: 60 * 60 * 24 * 30 } },
-    );
-    if (res.status === 404) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (res.status === 401 || res.status === 402) {
+      return { ok: false, error: subscriptionError(res.status) };
+    }
+    if (!res.ok) {
       return {
         ok: false,
-        error: "NWS has no forecast for this location (US and territories only).",
+        error: `OpenWeather responded ${res.status} ${res.statusText}`,
       };
     }
-    if (!res.ok) {
-      return { ok: false, error: `NWS responded ${res.status} ${res.statusText}` };
-    }
-    const json = (await res.json()) as { properties?: { forecast?: string } };
-    const gridUrl = json.properties?.forecast;
-    if (!gridUrl) {
-      return { ok: false, error: "NWS did not return a forecast URL for this point." };
-    }
-    return { ok: true, gridUrl };
+    const json = (await res.json()) as RawSummary;
+    return {
+      ok: true,
+      day: {
+        calKey: isoDate.replace(/-/g, ""),
+        tempDay: json.temperature?.afternoon ?? NaN,
+        tempNight: json.temperature?.night ?? NaN,
+        rainAmt: json.precipitation?.total ?? 0,
+        source,
+      },
+    };
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "Network error contacting NWS",
+      error: e instanceof Error ? e.message : "Network error contacting OpenWeather",
     };
   }
 }
 
-/** Full 7-day forecast, normalized. Pass a cached gridUrl to skip the /points call. */
-export async function fetchForecast(
-  latLong: [number, number],
-  knownGridUrl?: string,
-): Promise<Result<{ gridUrl: string; periods: ForecastPeriod[] }>> {
-  let gridUrl = knownGridUrl?.trim() || "";
-  if (!gridUrl) {
-    const r = await resolveGridUrl(latLong[0], latLong[1]);
-    if (!r.ok) return r;
-    gridUrl = r.gridUrl;
-  }
-
-  try {
-    const res = await fetch(gridUrl, {
-      headers: nwsHeaders(),
-      cache: "no-store",
-    });
-    if (!res.ok) {
-      return { ok: false, error: `NWS responded ${res.status} ${res.statusText}` };
-    }
-    const json = (await res.json()) as {
-      properties?: { periods?: RawPeriod[] };
-    };
-    const raw = json.properties?.periods ?? [];
-    const periods: ForecastPeriod[] = raw.map((p) => {
-      // startTime carries the location's UTC offset; take the local calendar date
-      // straight from the ISO string rather than the server's clock.
-      const calKey = p.startTime.slice(0, 10).replace(/-/g, "");
-      const isNight = !p.isDaytime;
-      return {
-        calKey,
-        isNight,
-        dateStr: `${calKey}.${isNight ? 1 : 0}`,
-        name: p.name,
-        temp: p.temperature,
-        tempUnit: p.temperatureUnit,
-        rainProb:
-          typeof p.probabilityOfPrecipitation?.value === "number"
-            ? p.probabilityOfPrecipitation.value
-            : 0,
-        skyCond: p.shortForecast,
-      };
-    });
-    return { ok: true, gridUrl, periods };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "Network error contacting NWS",
-    };
-  }
+/** Fetch several dates for one point in parallel. Each item keeps its own ok/error. */
+export async function fetchDaySummaries(
+  lat: number,
+  lon: number,
+  dates: Array<{ isoDate: string; source: "forecast" | "summary" }>,
+): Promise<Array<Result<{ day: DailyWeather }>>> {
+  return Promise.all(
+    dates.map((d) => fetchDaySummary(lat, lon, d.isoDate, d.source)),
+  );
 }
 
-interface RawPeriod {
-  name: string;
-  startTime: string;
-  isDaytime: boolean;
-  temperature: number;
-  temperatureUnit: string;
-  probabilityOfPrecipitation?: { value: number | null };
-  shortForecast: string;
+interface RawSummary {
+  temperature?: { afternoon?: number; night?: number };
+  precipitation?: { total?: number };
 }

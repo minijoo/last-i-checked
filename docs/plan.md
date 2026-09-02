@@ -21,8 +21,8 @@ meaning to those numbers.
 ## Non-Goals
 
 - It does not need to replace weather or stock apps. This app just focuses on the large
-  numbers, like PRICE or TEMPERATURE/RAIN PROBABILITY/SKY CONDITION. Highs, lows (for
-  stocks), feels-likes, humidity (for weather) are not priority.
+  numbers, like PRICE or DAY/NIGHT TEMPERATURE and RAIN AMOUNT. Highs, lows (for
+  stocks), feels-likes, humidity, sky/conditions text (for weather) are not priority.
 
 ## Core Concepts
 
@@ -33,8 +33,8 @@ meaning to those numbers.
 - `StockCheck` is an object/collection that tracks the price of a stock at various
   points, i.e. 3 values: price, stock symbol, time.
 - `WeatherCheck` is similar but tracks a few more values: check time, location name,
-  lat/long, forecast date (each day split into day and night), temperature, temperature
-  unit, rain probability, sky condition.
+  lat/long, forecast date (one row per calendar date), day temperature, night
+  temperature, and rain amount for that date.
 - The `StockCheck` / `WeatherCheck` stores are **append-only** in normal use: a fetch
   only inserts rows. Pruning old history is a later concern (see Open Questions).
 - What the user is *currently tracking* lives in separate **registry** stores
@@ -42,7 +42,7 @@ meaning to those numbers.
   Adding an item writes a registry row; "untracking" deletes only that registry row —
   the check history stays, so re-adding the same symbol or location-date later brings
   its past checks back into the graph. History is matched to an item by value
-  (`symbol`, or `(location, dateStr)`), not by an id.
+  (`symbol`, or `(location, dateStr)` where `dateStr` is `YYYYMMDD`), not by an id.
 - These two objects exist independently and are not related. They live on their own,
   separate pages.
 
@@ -77,10 +77,11 @@ to an `8/28` column reads as "+$3 since 8/28" without stating it, even when seve
 separate the two. Hover/tap a delta to spell it out explicitly. The oldest shown column,
 and any item on its first-ever check, show a value with no delta.
 
-- `rainProb` is a percentage (0-100), from NWS `probabilityOfPrecipitation` — a
-  likelihood, not a quantity of rain.
-- Sky condition (weather) is text, not a number: the column shows the `shortForecast`
-  string and the delta becomes "changed" / "same" vs. the prior column.
+- `rainAmt` is a quantity of rain for the date (OpenWeather precipitation total).
+  OpenWeather always returns precipitation in **mm** even with `units=imperial`; the UI
+  converts to inches for display.
+- Weather has three numbers per date — day temp, night temp, rain amount — surfaced via
+  a Day / Night / Rain view toggle. Each is a plain number with a numeric delta.
 - The single-item detail page still plots **every raw check** on its graph; the columnar
   view is the list/home-screen summary.
 - How many columns: a few on the list view, more on the detail page (exact counts TBD
@@ -94,23 +95,25 @@ the cliff feels wrong in practice.
 ## Screens / Flows
 
 - Weather page
-    - Assuming the home location is set, by default, today's date and each of the 6 days
-      following it are rendered onto the screen. (`mockups/weather-home.png`)
+    - Assuming the home location is set, by default, today's date and each of the 15 days
+      following it are rendered onto the screen — a rolling 16-day window.
+      (`mockups/weather-home.png`)
     - Any date for any location (i.e. location-date pair) can be added for tracking
       (`mockups/weather-add.png`). This writes a `TrackedForecast` row (`forecastDate` =
-      `YYYYMMDD`, no day/night suffix). If the pinned date is outside NWS's ~7-day
-      window, fetches store nothing for it until it comes into range.
-    - The home location's today + 6 days are a rolling, derived view — not
+      `YYYYMMDD`). Dates within the 16-day window come from the standard forecast; dates
+      further out are filled from OpenWeather's `day_summary` estimate. Past dates fetch
+      nothing and show a note prompting the user to unpin.
+    - The home location's today + 15 days are a rolling, derived view — not
       `TrackedForecast` rows. Only explicitly pinned dates are registry rows.
     - Untracking a location-date deletes only its `TrackedForecast` row; past
       `WeatherCheck` rows are kept.
-    - Searching a location should asynchronously provide location suggestions based on
-      response from `GeoNames`. Autocomplete should implement debouncing to avoid
-      unnecessary API calls. NWS covers the US and its territories only — non-US results
-      should be filtered out or shown as "not supported" for now.
-    - View can be toggled between temperature, rain probability, and sky conditions
-      (`mockups/weather-rain.png`)
-    - Each day's forecast is split into two: day and night.
+    - Searching a location should asynchronously provide location suggestions from
+      OpenWeather's geocoding API. Autocomplete should debounce to avoid unnecessary
+      calls. Any city on the globe is allowed (results show city, state/region, country).
+    - View can be toggled between day temperature, night temperature, and rain amount
+      (`mockups/weather-rain.png`).
+    - Each date carries a day temperature and a night temperature in one `WeatherCheck`
+      row (no separate day/night rows).
     - Click into a single day view, and you can see a graph of the most recent checks
       you've made for that day/location. (`mockups/weather-day-page.png`)
 
@@ -154,40 +157,46 @@ _High-level only; details go in `docs/schema.md`._
       `GET https://data.alpaca.markets/v2/stocks/snapshots?symbols=AAPL,TSLA,MSFT,GOOGL`
     - Can retrieve in bulk.
     - Response is JSON. Stock price will be `latestTrade.p`
-- Weather: NWS API
-    - There is a two-step process to get the forecast for a location. API will always
-      respond with the 7-day forecast.
-    - First use: `GET https://api.weather.gov/points/{latitude},{longitude}` to get the
-      forecast office and grid X/Y for that point. Then fetch the forecast from the
-      returned grid URL:
-      `GET https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast`. This
-      returns the forecast for each of the 6 days after the current day, further split
-      into day and night. The values we are interested in are `temperature`,
-      `temperatureUnit`, `probabilityOfPrecipitation`, `shortForecast` on the object at
-      `properties.periods[x]`.
-    - `/points` returns 404 for coordinates outside NWS coverage (non-US) — treat as
-      "location not supported". The grid mapping is static per point, so cache the
-      returned grid-forecast URL (`gridUrl` on the `TrackedForecast` row / `homeLocation`
-      setting) instead of re-running `/points` every fetch. Requires a `User-Agent`
-      header or NWS returns 403.
-- Geolocation: GeoNames
-    - Method:
-      `http://api.geonames.org/searchJSON?name_startsWith=Lon&featureClass=P&maxRows=10&username=YOUR_USERNAME`
-    - `featureClass=P` should limit results by populated areas like cities.
-    - Response should contain lat/long values, which should be saved in memory, then
-      saved to a `WeatherCheck` object if the fetch is performed. Lat/long should be used
-      in the NWS API call to retrieve the forecast data.
+- Weather: OpenWeather API (`OPENWEATHER_API_KEY`, `units=imperial` on every call so
+  temperatures come back in Fahrenheit; precipitation is always mm regardless).
+  Global coverage. Needs an active "One Call by Call" subscription (1000 calls/day
+  included, then ~$0.15 per 100, no hard cap).
+    - **Every tracked date — One Call 3.0 day summary**, one call per date:
+      `GET https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={lat}&lon={lon}&date={YYYY-MM-DD}&units=imperial&appid={key}`
+      Use `temperature.afternoon` (day), `temperature.night` (night),
+      `precipitation.total` (mm). day_summary covers near-future dates (live forecast
+      aggregate) as well as long-range (statistical estimate), so it's the single
+      source. Fetch a location's dates in parallel server-side.
+    - The standalone "Daily Forecast 16 Days" (`data/2.5/forecast/daily`) would cut
+      the home window to one call, but it's a separate paid product the key doesn't
+      carry (401s). Revisit if that subscription is added — `source` on each
+      `WeatherCheck` already marks in-horizon vs long-range.
+    - `source` = `"forecast"` when the date is within `HOME_WINDOW_DAYS`, `"summary"`
+      when it's further out. (Same endpoint either way for now; the field records the
+      horizon so the UI can badge long-range dates as estimates.)
+- Geocoding: OpenWeather Geo API
+    - `GET https://api.openweathermap.org/geo/1.0/direct?q={query}&limit={n}&appid={key}`
+    - Response entries carry `name`, `lat`, `lon`, `country`, optional `state`. Display
+      as "City, State, Country"; store `{ name, latLong }` on the `WeatherCheck` /
+      `TrackedForecast` / `homeLocation` setting.
 
 ## Decisions
 
 - **Cloud sync → v2.** v1 is IndexedDB-only; server actions stay pure API proxies (no
   accounts, no server-side persistence). Clearing browser data wipes v1 history.
-- **Weather is US-only for now** — NWS coverage. Non-US GeoNames results are filtered out
-  / shown as unsupported.
-- **`rainAmt` → `rainProb`** — a percentage from NWS `probabilityOfPrecipitation`. No QPF
-  call; rain *amount* is out of scope.
+- **Weather provider is OpenWeather** (was NWS). Global — any city on the globe.
+  Lifts the US-only and ~7-day limits.
+- **Weather values: day temp, night temp, rain amount.** `rainProb` (NWS probability)
+  → `rainAmt` (OpenWeather precipitation total, mm stored / inches shown). Sky
+  condition dropped entirely. `WeatherCheck` no longer splits a date into day/night
+  rows — one row per date with both temps.
+- **16-day home window** (`HOME_WINDOW_DAYS = 16`). Every tracked date is fetched via
+  One Call 3.0 `day_summary` (one call each); dates past the window are long-range
+  estimates. The standalone 16-day daily endpoint isn't on the key. **Past-dated pins
+  fetch nothing** — the row sits there with a "past date — unpin when done" note.
+- **Fahrenheit by default** — `units=imperial` on every OpenWeather call.
 - **Rolling weather window stays derived.** Only date+location pairs the user actively
-  adds become `TrackedForecast` rows; the home location's today + 6 days are never
+  adds become `TrackedForecast` rows; the home location's today + 15 days are never
   auto-pinned.
 - **One data-access module** fronts all storage (see Data), so v2's cloud/sync layer
   swaps one implementation instead of rewriting call sites.
@@ -201,6 +210,11 @@ _High-level only; details go in `docs/schema.md`._
   now.
 - Migrating storage to a cloud DB (MongoDB Atlas or similar) — revisit in v2 alongside
   cloud sync / accounts.
+- OpenWeather's 16-day daily forecast and One Call 3.0 endpoints need an active paid
+  subscription on the API key. If a call 401/402s, surface a clear "subscription
+  required" message the way the Alpaca-keys path does.
+- Past-date pins are inert (no fetch, just a note). Could auto-expire them instead of
+  waiting for a manual unpin — deferred.
 
 ## Milestones
 

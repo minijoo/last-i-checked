@@ -1,7 +1,7 @@
 // Run with: npm test   (node --test, no extra deps)
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { toColumns, toTextColumns } from "./buckets.ts";
+import { toColumns } from "./buckets.ts";
 
 const at = (s: string) => new Date(s).getTime();
 
@@ -64,23 +64,4 @@ test("limit keeps the newest columns", () => {
 
 test("empty input yields no columns", () => {
   assert.deepEqual(toColumns([], "stock"), []);
-});
-
-test("text columns report changed vs previous bucket", () => {
-  const cols = toTextColumns(
-    [
-      { checkedAt: at("2026-09-01T10:00"), value: "Sunny" },
-      { checkedAt: at("2026-09-02T10:00"), value: "Cloudy" },
-      { checkedAt: at("2026-09-03T10:00"), value: "Cloudy" },
-    ],
-    "stock",
-  );
-  assert.deepEqual(
-    cols.map((c) => [c.value, c.changed]),
-    [
-      ["Cloudy", false],
-      ["Cloudy", true],
-      ["Sunny", null],
-    ],
-  );
 });

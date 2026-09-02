@@ -1,14 +1,14 @@
 // Client-side orchestration for the "Fetch" buttons: pull current data from the
 // external APIs (via server actions) and append checks through the store.
 
-import { fetchForecast } from "./actions/weather";
+import { fetchDaySummaries } from "./actions/weather";
 import { fetchStockQuotes } from "./actions/stocks";
 import { jitterValue, nowForCheck } from "./devtime";
-import { todayCalendarKeys } from "./format";
+import { calKeyToIso, todayCalendarKeys } from "./format";
 import { store } from "./store";
-import type { LocationRef } from "./types";
+import type { LocationRef, WeatherCheck } from "./types";
 
-export const HOME_WINDOW_DAYS = 7;
+export const HOME_WINDOW_DAYS = 16;
 
 export interface FetchOutcome {
   added: number;
@@ -44,66 +44,64 @@ export async function runWeatherFetch(): Promise<FetchOutcome> {
     store.getTrackedForecasts(),
   ]);
 
-  // Collect the calendar dates we want per location.
-  const locs = new Map<
-    string,
-    { ref: LocationRef; wanted: Set<string>; isHome: boolean }
-  >();
+  // One entry per location; `wanted` is the set of calendar dates for it.
+  const locs = new Map<string, { ref: LocationRef; wanted: Set<string> }>();
+  const homeWindow = todayCalendarKeys(HOME_WINDOW_DAYS);
   if (home) {
-    locs.set(home.name, {
-      ref: home,
-      wanted: new Set(todayCalendarKeys(HOME_WINDOW_DAYS)),
-      isHome: true,
-    });
+    locs.set(home.name, { ref: home, wanted: new Set(homeWindow) });
   }
   for (const p of pins) {
     const entry =
       locs.get(p.location) ??
-      {
-        ref: {
-          name: p.location,
-          latLong: p.latLong,
-          gridUrl: p.gridUrl || undefined,
-        },
-        wanted: new Set<string>(),
-        isHome: false,
-      };
+      { ref: { name: p.location, latLong: p.latLong }, wanted: new Set<string>() };
     entry.wanted.add(p.forecastDate);
-    if (!entry.ref.gridUrl && p.gridUrl) entry.ref.gridUrl = p.gridUrl;
     locs.set(p.location, entry);
   }
   if (locs.size === 0) return { added: 0, errors: [] };
 
+  const today = homeWindow[0];
+  const windowEnd = homeWindow[homeWindow.length - 1];
   const now = nowForCheck();
   const errors: string[] = [];
   let added = 0;
 
   for (const [name, { ref, wanted }] of locs) {
-    const res = await fetchForecast(ref.latLong, ref.gridUrl);
-    if (!res.ok) {
-      errors.push(`${name}: ${res.error}`);
-      continue;
-    }
-    if (res.gridUrl && res.gridUrl !== ref.gridUrl) {
-      if (home && home.name === name) {
-        await store.setHomeLocation({ ...home, gridUrl: res.gridUrl });
+    // Skip past dates entirely — the row stays until the user unpins it.
+    const dates = [...wanted]
+      .filter((k) => k >= today)
+      .sort()
+      .map((k) => ({
+        isoDate: calKeyToIso(k),
+        source: (k <= windowEnd ? "forecast" : "summary") as
+          | "forecast"
+          | "summary",
+      }));
+    if (dates.length === 0) continue;
+
+    const [lat, lon] = ref.latLong;
+    const results = await fetchDaySummaries(lat, lon, dates);
+    const rows: Array<Omit<WeatherCheck, "id">> = [];
+    for (const res of results) {
+      if (!res.ok) {
+        errors.push(`${name}: ${res.error}`);
+        continue;
       }
-      await store.updateForecastGridUrl(name, res.gridUrl);
-    }
-    const checks = res.periods
-      .filter((p) => wanted.has(p.calKey))
-      .map((p) => ({
+      rows.push({
         checkedAt: now,
-        dateStr: p.dateStr,
+        dateStr: res.day.calKey,
         location: name,
         latLong: ref.latLong,
-        temp: jitterValue(p.temp),
-        tempUnit: p.tempUnit,
-        rainProb: p.rainProb,
-        skyCond: p.skyCond,
-      }));
-    await store.appendWeatherChecks(checks);
-    added += checks.length;
+        tempDay: jitterValue(res.day.tempDay),
+        tempNight: jitterValue(res.day.tempNight),
+        tempUnit: "F",
+        rainAmt: res.day.rainAmt,
+        source: res.day.source,
+      });
+    }
+    await store.appendWeatherChecks(rows);
+    added += rows.length;
   }
-  return { added, errors };
+
+  // Collapse repeated identical errors (e.g. same subscription failure per date).
+  return { added, errors: [...new Set(errors)] };
 }

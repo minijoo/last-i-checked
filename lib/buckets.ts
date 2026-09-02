@@ -16,25 +16,12 @@ export interface NumDatum {
   value: number;
 }
 
-export interface TextDatum {
-  checkedAt: number;
-  value: string;
-}
-
 export interface NumColumn {
   key: string; // bucket id, e.g. "2026-09-01" or "2026-09-01-PM"
   label: string; // header text, e.g. "Sep 1" or "Sep 1 PM"
   at: number; // checkedAt of the representative (last) check in the bucket
   value: number;
   delta: number | null; // value - previous column's value; null for oldest
-}
-
-export interface TextColumn {
-  key: string;
-  label: string;
-  at: number;
-  value: string;
-  changed: boolean | null; // vs previous column; null for oldest
 }
 
 function round(x: number): number {
@@ -92,27 +79,5 @@ export function toColumns(
     };
   });
   cols.reverse(); // newest first
-  return Number.isFinite(limit) ? cols.slice(0, limit) : cols;
-}
-
-export function toTextColumns(
-  data: TextDatum[],
-  domain: Domain,
-  limit = Number.POSITIVE_INFINITY,
-): TextColumn[] {
-  if (data.length === 0) return [];
-  const { keys, byBucket } = groupByBucket(data, domain);
-  const cols: TextColumn[] = keys.map((key, i) => {
-    const d = byBucket.get(key)!;
-    const prev = i > 0 ? byBucket.get(keys[i - 1])! : null;
-    return {
-      key,
-      label: bucketLabel(key),
-      at: d.checkedAt,
-      value: d.value,
-      changed: prev ? prev.value !== d.value : null,
-    };
-  });
-  cols.reverse();
   return Number.isFinite(limit) ? cols.slice(0, limit) : cols;
 }

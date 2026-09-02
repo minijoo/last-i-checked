@@ -25,16 +25,17 @@ interface StockCheck {        // one row per fetch, per symbol; append-only
   price: number;              // price at this fetch
 }
 
-interface WeatherCheck {      // one row per fetch, per (location, date, day|night); append-only
+interface WeatherCheck {      // one row per fetch, per (location, date); append-only
   id: number;                 // auto-increment PK
   checkedAt: number;          // epoch ms
-  dateStr: string;            // "YYYYMMDD.X" — X is 0 (day) or 1 (night); sorts lexicographically
+  dateStr: string;            // "YYYYMMDD" — calendar date; sorts lexicographically
   location: string;           // canonical display name of the forecast location
   latLong: number[];          // [lat, long]
-  temp: number;
-  tempUnit: string;           // "F" | "C"
-  rainProb: number;           // precip probability %, 0-100 (NWS probabilityOfPrecipitation)
-  skyCond: string;            // NWS shortForecast text
+  tempDay: number;            // OpenWeather temp.day / day_summary temperature.afternoon (°F)
+  tempNight: number;          // OpenWeather temp.night / day_summary temperature.night (°F)
+  tempUnit: string;           // always "F" (units=imperial)
+  rainAmt: number;            // precipitation total for the date, mm (precipitation.total)
+  source: "forecast" | "summary"; // date within HOME_WINDOW_DAYS, or a long-range estimate
 }
 
 interface TrackedStock {      // registry: symbols tracked right now
@@ -46,14 +47,13 @@ interface TrackedForecast {   // registry: (location, calendar-date) pairs the u
   id: number;                 // auto-increment PK
   location: string;           // canonical display name (matches WeatherCheck.location)
   latLong: number[];          // [lat, long]
-  forecastDate: string;       // "YYYYMMDD" — calendar date only, NO .X day/night suffix
-  gridUrl: string;            // cached NWS /gridpoints forecast URL for this point
+  forecastDate: string;       // "YYYYMMDD" — calendar date
   addedAt: number;            // epoch ms
 }
 
 interface Setting {           // misc app state
   key: string;                // PK, e.g. "homeLocation"
-  value: unknown;             // e.g. { location: string, latLong: [number, number], gridUrl: string }
+  value: unknown;             // e.g. { name: string, latLong: [number, number] }
 }
 ```
 
@@ -69,19 +69,24 @@ interface Setting {           // misc app state
 
 ## Migrations
 
-- **v1** — create all stores + indexes above.
+- **v1** — create all stores + indexes above. This is the only Dexie version.
+
+The NWS → OpenWeather switch changed `WeatherCheck` / `TrackedForecast` **fields** but
+no keyPath or index, so it needs no Dexie version bump. Incompatible pre-release
+`weatherChecks` rows are dropped by a one-time guard in `store.ts`: on first weather
+access it compares `settings["weatherGen"]` to a constant and, if stale, clears
+`weatherChecks` and writes the new value. `StockCheck` and the stock stores are
+untouched. Bump the `weatherGen` constant again if `WeatherCheck` ever changes shape.
 
 ## Notes
 
-- Dexie: the `db.version(1).stores({...})` block is the source of truth for
+- Dexie: the `db.version(n).stores({...})` block is the source of truth for
   stores / indexes once `db.ts` exists; this file keeps record shapes + rationale.
-- `WeatherCheck.dateStr` carries the `.X` day/night suffix; `TrackedForecast.forecastDate`
-  does not. One pinned pair → two `WeatherCheck` rows per fetch (`.0` and `.1`).
+- `WeatherCheck.dateStr` and `TrackedForecast.forecastDate` are both `YYYYMMDD` now —
+  one `WeatherCheck` row per (location, date) per fetch (day + night temps in that row).
 - The `[symbol+checkedAt]` / `[location+dateStr]` compound indexes are the
   graph-query access path (all checks for one item, roughly in time order — the
   graph still sorts by `checkedAt` in memory).
-- The home-location rolling window (today + 6 days) is **derived**, not stored in
-  `TrackedForecast`; only explicitly pinned dates get a registry row. Its grid URL
-  lives on the `homeLocation` `Setting`. (Open: revisit if rolling days should auto-pin.)
-- `gridUrl` is duplicated across pinned dates at the same location — accepted;
-  untracking a row then cleans up naturally.
+- The home-location rolling window (today + 15 days, a 16-day window) is **derived**,
+  not stored in `TrackedForecast`; only explicitly pinned dates get a registry row.
+  (Open: revisit if rolling days should auto-pin.)

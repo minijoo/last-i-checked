@@ -17,6 +17,15 @@ export function formatTemp(n: number, unit: string): string {
   return `${Math.round(n)}°${unit}`;
 }
 
+/** OpenWeather returns precipitation in mm; the app shows inches. */
+export function mmToInches(mm: number): number {
+  return mm / 25.4;
+}
+
+export function formatRain(mm: number): string {
+  return `${mmToInches(mm).toFixed(2)}"`;
+}
+
 /** "Sep 1, 2:14 PM" — absolute timestamp for tooltips / "as of" lines. */
 export function formatStamp(ts: number): string {
   return new Date(ts).toLocaleString(undefined, {
@@ -35,18 +44,14 @@ export function formatDay(ts: number): string {
   });
 }
 
-// ---- Weather dateStr helpers: "YYYYMMDD.X" (X = 0 day, 1 night) ----
+// ---- Weather date helpers: "YYYYMMDD" calendar-date keys ----
 
-export function makeDateStr(date: Date, isNight: boolean): string {
+/** "YYYYMMDD" calendar-date key for a Date, in that Date's local components. */
+export function calendarKey(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
-  return `${y}${m}${d}.${isNight ? 1 : 0}`;
-}
-
-/** "YYYYMMDD" calendar-date key (no day/night suffix) for a Date. */
-export function calendarKey(date: Date): string {
-  return makeDateStr(date, false).slice(0, 8);
+  return `${y}${m}${d}`;
 }
 
 export function parseCalendarKey(key: string): Date {
@@ -56,16 +61,9 @@ export function parseCalendarKey(key: string): Date {
   return new Date(y, m - 1, d);
 }
 
-/** Pretty-print a "YYYYMMDD.X" dateStr, e.g. "Mon Sep 1 · day". */
-export function formatDateStr(dateStr: string): string {
-  const [ymd, half] = dateStr.split(".");
-  const date = parseCalendarKey(ymd);
-  const label = date.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-  return `${label} · ${half === "1" ? "night" : "day"}`;
+/** "YYYYMMDD" -> "YYYY-MM-DD" (the format OpenWeather day_summary wants). */
+export function calKeyToIso(key: string): string {
+  return `${key.slice(0, 4)}-${key.slice(4, 6)}-${key.slice(6, 8)}`;
 }
 
 export function todayCalendarKeys(count: number): string[] {

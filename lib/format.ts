@@ -44,6 +44,19 @@ export function formatDay(ts: number): string {
   });
 }
 
+/**
+ * Relative day header for a bucket key ("YYYY-MM-DD", optionally with an
+ * "-AM"/"-PM" half that we ignore): "today", "1 day ago", "3 days ago".
+ */
+export function relativeDayLabel(key: string): string {
+  const [y, m, d] = key.split("-");
+  const date = new Date(Number(y), Number(m) - 1, Number(d));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((today.getTime() - date.getTime()) / 86_400_000);
+  return days <= 0 ? "today" : `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 // ---- Weather date helpers: "YYYYMMDD" calendar-date keys ----
 
 /** "YYYYMMDD" calendar-date key for a Date, in that Date's local components. */

@@ -1,14 +1,23 @@
 import type { NextConfig } from "next";
 
+// Both browser-launching routes need these two packages' non-JS assets
+// (playwright-core's browsers.json, @sparticuz/chromium's bin/ directory
+// holding the compressed Chromium binary) copied into the deployed function.
+// Next's build-time file tracer (@vercel/nft) doesn't follow how either
+// package locates these files at runtime, so without this they're silently
+// dropped — works in `next build` and local dev, only fails in production
+// ("Cannot find module '.../playwright-core/browsers.json'", or "@sparticuz/
+// chromium/bin does not exist"). See docs/plan.md "Custom URL Checks —
+// Technical Approach".
+const BROWSER_ASSETS = [
+  "./node_modules/playwright-core/**/*",
+  "./node_modules/@sparticuz/chromium/**/*",
+];
+
 const nextConfig: NextConfig = {
-  // playwright-core reads browsers.json (and a few other package-root files)
-  // at runtime via a path Next's static tracer (@vercel/nft) doesn't follow,
-  // so it's silently dropped from the Vercel function bundle without this —
-  // surfaces in prod as "Cannot find module '.../playwright-core/browsers.json'".
-  // See docs/plan.md "Custom URL Checks — Technical Approach".
   outputFileTracingIncludes: {
-    "/api/custom-check": ["./node_modules/playwright-core/**/*"],
-    "/api/custom-check/suggest-selector": ["./node_modules/playwright-core/**/*"],
+    "/api/custom-check": BROWSER_ASSETS,
+    "/api/custom-check/suggest-selector": BROWSER_ASSETS,
   },
 };
 

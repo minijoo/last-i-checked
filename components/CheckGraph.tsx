@@ -23,6 +23,21 @@ export interface DualGraphPoint {
   b: number;
 }
 
+/**
+ * Rounds to the same precision the axis/tooltip display at. Without this, a
+ * series whose true values differ only below that precision (e.g. rain
+ * amounts converted from mm that differ by a few ten-thousandths of an inch)
+ * makes recharts auto-scale the Y axis to that imperceptible true range —
+ * every tick then rounds to the same displayed label ("0.00" everywhere)
+ * while the line still visibly wanders within a range the axis can't convey.
+ * Rounding first collapses insignificant noise so the chart and its labels
+ * agree on what's actually distinguishable.
+ */
+function roundToDigits(v: number, digits: number): number {
+  const f = 10 ** digits;
+  return Math.round(v * f) / f;
+}
+
 /** Line graph of every raw check for one item (detail pages plot all points). */
 export function CheckGraph({
   points,
@@ -40,7 +55,9 @@ export function CheckGraph({
       </p>
     );
   }
-  const data = [...points].sort((a, b) => a.t - b.t);
+  const data = [...points]
+    .sort((a, b) => a.t - b.t)
+    .map((p) => ({ ...p, v: roundToDigits(p.v, digits) }));
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -112,7 +129,13 @@ export function DualCheckGraph({
       </p>
     );
   }
-  const data = [...points].sort((a, b) => a.t - b.t);
+  const data = [...points]
+    .sort((a, b) => a.t - b.t)
+    .map((p) => ({
+      ...p,
+      a: roundToDigits(p.a, digits),
+      b: roundToDigits(p.b, digits),
+    }));
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">

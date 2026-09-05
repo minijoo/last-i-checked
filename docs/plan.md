@@ -132,6 +132,39 @@ the cliff feels wrong in practice.
     - Click into a single stock view, and you can see a graph of the most recent checks
       you've made for that stock. (`mockups/stocks-symbol-page.png`)
 
+- Custom checks page
+    - Lets a user monitor any value on any page: provide a unique **name**, a **URL**,
+      and a **CSS selector** pointing at where the value sits on that page. Assumes an
+      advanced-Chrome-user audience — finding a selector means opening devtools, which
+      needs a desktop browser. That's only a constraint on *creating* a check; running
+      an existing one works from any device, since the fetch itself runs server-side
+      (see Technical Approach below).
+    - **Consolidated table, same shape as Stocks/Weather**: one row per tracked check,
+      shared date-column axis, last 4 days shown (declutter — full history lives on the
+      detail page). Each row still carries its **own Fetch** button in the row-label
+      cell rather than one page-level bulk button — a headless-browser fetch can take up
+      to ~30s, so batching many behind one shared button would block the page on the
+      slowest one. Fetching stays **asynchronous per check**: clicking Fetch kicks off
+      the job server-side and returns immediately, so the user can trigger another
+      check's fetch (or navigate away) while it runs.
+    - **Only numeric checks go in the matrix.** A long text value would distort every
+      other row's column width in a shared-column table, so text-valued checks are
+      kept out of it entirely and instead each get their own standalone card (name,
+      Fetch button, own history table) below the matrix — same as the very first
+      version of this page, before the matrix view existed. A bucket in the matrix
+      only reflects a **successful** fetch — an errored fetch contributes no value to
+      that row's columns.
+    - Errored fetches are surfaced in a separate **Recent errors** table below the main
+      one (check name, timestamp, error message), not inline in the value columns.
+      Long error text stays on one line and scrolls horizontally rather than wrapping
+      or getting truncated with an ellipsis.
+    - Each tracked check has its own **detail page** (`/custom/[name]`, mirroring
+      `/stocks/[symbol]`): a graph of every raw numeric check (omitted for text-valued
+      checks, or when there are fewer than 2 points — same rule as Stocks), a "by day"
+      horizontally-scrollable column strip, and a full reverse-chronological history
+      table that includes error rows (unlike the home-page table, since debugging one
+      check's failures is exactly what this page is for).
+
 ## Data
 
 _High-level only; details go in `docs/schema.md`._
@@ -180,6 +213,105 @@ _High-level only; details go in `docs/schema.md`._
       as "City, State, Country"; store `{ name, latLong }` on the `WeatherCheck` /
       `TrackedForecast` / `homeLocation` setting.
 
+## Custom URL Checks — Technical Approach
+
+- **Why the fetch has to run server-side.** A browser can't load an arbitrary
+  third-party URL and read its DOM directly from client code: cross-origin iframes are
+  blocked by the same-origin policy, and a plain client `fetch()` to another origin
+  fails CORS before HTML parsing even starts. This runs as a server action / route
+  handler — the same seam as the Alpaca and OpenWeather proxies in `lib/actions/`.
+- **Headless browser, not a static fetch+parse.** Chosen over a lightweight
+  HTML-parse-only approach so it works uniformly whether the value is present in the
+  initial HTML or filled in by client-side JS (e.g. a live-updating ticker) — one code
+  path, not a "try static, fall back to a browser" split.
+    - `playwright-core` + `@sparticuz/chromium` (a serverless-compatible Chromium
+      build), used the same way in local dev and on Vercel, so there's no separate
+      dev-only "real Playwright" path to maintain.
+- **Fetch pipeline:**
+    1. `page.goto(url, { timeout })`
+    2. `page.waitForSelector(selector, { timeout })` — this *is* the "wait for initial
+       JS" step. It waits for the specific value to exist rather than guessing when the
+       page is generally "done," so no separate `networkidle` wait is needed.
+    3. Read `.textContent()` off the matched element, parse it per the check's value
+       type (number vs. text), and write a `CustomCheck` row.
+    4. Any failure (navigation timeout, selector never appears, bot-blocked page) is
+       stored as `status: "error"` with a message — a failed fetch shows on the card
+       rather than silently vanishing.
+- **Data model** (append-only history + registry, same shape as Stocks/Weather —
+  see `schema.md` for full record shapes):
+    - `TrackedCustom` — PK'd on `name` (unique, user-provided), plus `url`, `selector`,
+      `valueType`
+    - `CustomCheck` — matched to its tracked item **by `name`, not a foreign key**
+      (same convention as `StockCheck.symbol` / `WeatherCheck.location+dateStr`, so
+      untrack → re-track resurfaces old history). Snapshots `url`/`selector`/
+      `valueType` at fetch time, plus `rawText` (always kept, so a selector that
+      starts returning garbage is debuggable), parsed `value`, `status`,
+      `errorMessage`
+- **SSRF guard.** The server is fetching whatever URL a user types in, so before
+  navigating, resolve the hostname and reject private/link-local ranges
+  (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, and especially
+  `169.254.0.0/16` — the cloud metadata endpoint).
+- **Vercel function config.** Set `maxDuration` and `memory` explicitly on this route
+  rather than relying on project defaults. Fluid Compute's default max duration (300s,
+  every plan including Hobby) already covers a worst-case ~30s scrape, but a real
+  Chromium instance is memory-hungry enough that the default memory allocation is worth
+  overriding too.
+
+## AI-Assisted Selector Suggestion — Technical Approach
+
+Finding a CSS selector requires devtools, which assumes an advanced-Chrome-user
+audience (see Custom checks page above). This feature lowers that bar: the user
+gives a URL and describes the value in plain language ("the current stock
+price"), and the app suggests a selector instead of requiring devtools.
+
+**The core problem and why it doesn't need an agent.** A plain Claude API call
+can't figure out a selector from a description alone — it has no access to the
+rendered page. The naive fix (run Claude Code with a Puppeteer MCP server, e.g.
+via `child_process` on a Linux box) works but is heavyweight: it requires a
+persistent bash-accessible environment for the stdio MCP server, and turns a
+one-shot lookup into a full agentic session. The fix is to **separate driving
+the browser from reasoning about the page** — the app already runs Playwright
+server-side (for the scrape route); reuse it to extract the page's content as
+plain text, and give a single, ordinary Messages API call the job of matching
+the description against that text. Claude never touches the browser.
+
+**Pipeline** (new route handler, e.g. `app/api/custom-check/suggest-selector`,
+alongside the scrape route and sharing its `launchBrowser()` / SSRF guard):
+
+1. **Deterministic candidate extraction** — a self-contained function run via
+   `page.evaluate()` (`lib/extractCandidates.ts`), no LLM involved:
+   - Walk visible, text-bearing elements under `<body>` (checks computed
+     `visibility`/`display`/`opacity` and a non-zero bounding rect; skips
+     `<script>`/`<style>`/`<noscript>`/`<svg>` and `aria-hidden` nodes).
+   - Drop a node if one of its children has the exact same text — that node is
+     just a wrapper; keep the more specific descendant instead.
+   - For each surviving node, synthesize a selector with the same fallback
+     ladder DevTools uses: unique `#id` → unique `data-*`/`aria-*` attribute →
+     unique `tag.class` combination → a structural `nth-child` path up from the
+     node. Every selector is verified with `querySelectorAll(selector).length
+     === 1` before being accepted, so nothing handed to the model is a guess.
+   - Truncate each candidate's text (~100 chars) and cap the list (~200
+     candidates) to keep the prompt small.
+2. **One Messages API call**, `client.messages.parse()` with a Zod-constrained
+   response (`{ index: number | null, confidence: "high" | "low" }`), given the
+   page title, the user's description, and the numbered `{index, text}`
+   candidate list (selectors are not sent to the model — unnecessary, and it
+   only needs to pick a snippet). `output_config.effort: "low"` — this is a
+   pick-one-from-a-list classification task, not a reasoning-heavy one.
+3. **Server-side verification**, on the still-open page: re-resolve the chosen
+   candidate's selector and confirm it still matches exactly one element
+   before returning `{ selector, matchedText, confidence }`.
+4. **UI**: the Add-check form gets a description field and a "Suggest
+   selector" action that fills in the selector field (and shows the matched
+   text) for the user to confirm or edit — never auto-saved without the user
+   seeing what was picked. A `null` index (no confident match) surfaces as "try
+   rephrasing, or use devtools" rather than a wrong guess.
+
+**Example.** Given `<span data-testid="last-price">$254.32</span>` among other
+elements, extraction produces a candidate like `{ index: 2, text: "$254.32",
+selector: "[data-testid=\"last-price\"]" }`; the model only ever sees index 2
+and the text `"$254.32"` next to the user's description, and returns `2`.
+
 ## Decisions
 
 - **Cloud sync → v2.** v1 is IndexedDB-only; server actions stay pure API proxies (no
@@ -216,6 +348,10 @@ _High-level only; details go in `docs/schema.md`._
   "subscription required" message the way the Alpaca-keys path does.
 - Past-date pins are inert (no fetch, just a note). Could auto-expire them instead of
   waiting for a manual unpin — deferred.
+- Custom URL checks launch a fresh headless browser on every fetch. Fluid Compute reuses
+  warm instances, so a module-level singleton browser (reused across invocations on the
+  same warm instance, new `BrowserContext` per fetch) could skip the launch cost on warm
+  hits — deferred until launch-per-invocation proves too slow in practice.
 
 ## Milestones
 

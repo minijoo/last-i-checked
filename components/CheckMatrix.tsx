@@ -12,7 +12,9 @@ export interface NumRow {
 
 const cellBlank = <span className="text-muted">·</span>;
 
-function Shell({
+/** Shared table shell (date axis + sticky row-label column). Also used by
+ *  CustomMatrix, which needs the same layout for non-numeric columns. */
+export function Shell({
   axis,
   children,
 }: {
@@ -41,7 +43,7 @@ function Shell({
   );
 }
 
-const rowHeadClass =
+export const rowHeadClass =
   "sticky left-0 z-10 bg-surface px-2 py-2 text-left align-top font-medium whitespace-nowrap";
 
 /** Consolidated numeric table: shared date axis, one row per item. */

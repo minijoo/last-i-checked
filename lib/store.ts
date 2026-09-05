@@ -9,9 +9,11 @@ import { getDb } from "./db";
 import { calendarKey } from "./format";
 import type {
   BackupBlob,
+  CustomCheck,
   LocationRef,
   Setting,
   StockCheck,
+  TrackedCustom,
   TrackedForecast,
   TrackedStock,
   WeatherCheck,
@@ -73,6 +75,16 @@ export interface Store {
   appendWeatherChecks(checks: Array<Omit<WeatherCheck, "id">>): Promise<void>;
   getWeatherChecks(location: string, calKey: string): Promise<WeatherCheck[]>;
   getAllWeatherChecks(): Promise<WeatherCheck[]>;
+
+  // --- custom checks: registry ---
+  getTrackedCustoms(): Promise<TrackedCustom[]>;
+  addTrackedCustom(input: Omit<TrackedCustom, "addedAt">): Promise<void>;
+  removeTrackedCustom(name: string): Promise<void>;
+
+  // --- custom checks: append-only checks ---
+  appendCustomCheck(check: Omit<CustomCheck, "id">): Promise<void>;
+  getCustomChecks(name: string): Promise<CustomCheck[]>; // ascending by checkedAt
+  getAllCustomChecks(): Promise<CustomCheck[]>
 
   // --- generic settings ---
   getSetting<T = unknown>(key: string): Promise<T | undefined>;
@@ -172,6 +184,44 @@ class LocalStore implements Store {
     return getDb().weatherChecks.orderBy("checkedAt").toArray();
   }
 
+  getTrackedCustoms(): Promise<TrackedCustom[]> {
+    return getDb().trackedCustoms.orderBy("addedAt").toArray();
+  }
+
+  async addTrackedCustom(input: Omit<TrackedCustom, "addedAt">): Promise<void> {
+    const name = input.name.trim();
+    if (!name || !input.url.trim() || !input.selector.trim()) return;
+    // put(), not add(): re-adding a name the user previously untracked is
+    // intentional (same convention as addTrackedStock) — history resurfaces.
+    await getDb().trackedCustoms.put({
+      name,
+      url: input.url.trim(),
+      selector: input.selector.trim(),
+      valueType: input.valueType,
+      addedAt: Date.now(),
+    });
+  }
+
+  async removeTrackedCustom(name: string): Promise<void> {
+    // Deletes only the registry row; CustomCheck history is left intact.
+    await getDb().trackedCustoms.delete(name.trim());
+  }
+
+  async appendCustomCheck(check: Omit<CustomCheck, "id">): Promise<void> {
+    await getDb().customChecks.add(check as CustomCheck);
+  }
+
+  getCustomChecks(name: string): Promise<CustomCheck[]> {
+    return getDb()
+      .customChecks.where("[name+checkedAt]")
+      .between([name, MIN_KEY], [name, MAX_KEY])
+      .toArray();
+  }
+
+  getAllCustomChecks(): Promise<CustomCheck[]> {
+    return getDb().customChecks.orderBy("checkedAt").toArray();
+  }
+
   async getSetting<T = unknown>(key: string): Promise<T | undefined> {
     const row = await getDb().settings.get(key);
     return row ? (row.value as T) : undefined;
@@ -189,12 +239,16 @@ class LocalStore implements Store {
       trackedStocks,
       trackedForecasts,
       settings,
+      trackedCustoms,
+      customChecks,
     ] = await Promise.all([
       db.stockChecks.toArray(),
       db.weatherChecks.toArray(),
       db.trackedStocks.toArray(),
       db.trackedForecasts.toArray(),
       db.settings.toArray(),
+      db.trackedCustoms.toArray(),
+      db.customChecks.toArray(),
     ]);
     return {
       app: "last-i-checked",
@@ -205,6 +259,8 @@ class LocalStore implements Store {
       trackedStocks,
       trackedForecasts,
       settings,
+      trackedCustoms,
+      customChecks,
     };
   }
 
@@ -224,6 +280,8 @@ class LocalStore implements Store {
         db.trackedStocks,
         db.trackedForecasts,
         db.settings,
+        db.trackedCustoms,
+        db.customChecks,
       ],
       async () => {
         if (mode === "replace") {
@@ -233,6 +291,8 @@ class LocalStore implements Store {
             db.trackedStocks.clear(),
             db.trackedForecasts.clear(),
             db.settings.clear(),
+            db.trackedCustoms.clear(),
+            db.customChecks.clear(),
           ]);
         }
         // Drop ids so append-only rows re-key cleanly and never collide.
@@ -249,6 +309,10 @@ class LocalStore implements Store {
           strip(blob.trackedForecasts ?? []) as TrackedForecast[],
         );
         await db.settings.bulkPut((blob.settings ?? []) as Setting[]);
+        await db.trackedCustoms.bulkPut(blob.trackedCustoms ?? []);
+        await db.customChecks.bulkAdd(
+          strip(blob.customChecks ?? []) as CustomCheck[],
+        );
       },
     );
   }

@@ -12,8 +12,13 @@
   is left intact, so re-adding the same symbol or location-date later resurfaces
   its past checks in the graph.
 - History is matched to an item **by value, not by a foreign key**: `StockCheck`
-  by `symbol`, `WeatherCheck` by `(location, dateStr)`. That value match is what
-  makes untrack → re-track non-destructive.
+  by `symbol`, `WeatherCheck` by `(location, dateStr)`, `CustomCheck` by `name`.
+  That value match is what makes untrack → re-track non-destructive.
+- `CustomCheck` also snapshots the `url` / `selector` / `valueType` used at fetch
+  time (not just a lookup against the current `TrackedCustom` row), the same way
+  `WeatherCheck` snapshots `location` / `latLong` — so a check's history stays
+  interpretable even after the user edits the tracked config, and a bad fetch is
+  debuggable from the row alone.
 
 ## Record types
 
@@ -55,6 +60,27 @@ interface Setting {           // misc app state
   key: string;                // PK, e.g. "homeLocation"
   value: unknown;             // e.g. { name: string, latLong: [number, number] }
 }
+
+interface TrackedCustom {     // registry: custom URL/selector checks tracked right now
+  name: string;                // PK, unique, user-provided
+  url: string;
+  selector: string;            // CSS selector for the value's location on the page
+  valueType: "number" | "text";
+  addedAt: number;             // epoch ms
+}
+
+interface CustomCheck {       // one row per fetch, per tracked custom check; append-only
+  id: number;                 // auto-increment PK
+  checkedAt: number;          // epoch ms
+  name: string;                // matches TrackedCustom.name
+  url: string;                 // snapshot of TrackedCustom.url at fetch time
+  selector: string;            // snapshot of TrackedCustom.selector at fetch time
+  valueType: "number" | "text"; // snapshot of TrackedCustom.valueType at fetch time
+  rawText: string;             // exact textContent read from the matched element
+  value: number | string | null; // parsed per valueType; null when status is "error"
+  status: "ok" | "error";
+  errorMessage?: string;        // present when status is "error"
+}
 ```
 
 ## Object stores
@@ -66,6 +92,8 @@ interface Setting {           // misc app state
 | `TrackedStock`    | `symbol` | no            | `addedAt`                                     |
 | `TrackedForecast` | `id`     | yes           | `[location+forecastDate]` (unique), `addedAt` |
 | `Setting`         | `key`    | no            | —                                            |
+| `TrackedCustom`   | `name`   | no            | `addedAt`                                     |
+| `CustomCheck`     | `id`     | yes           | `name`, `checkedAt`, `[name+checkedAt]`       |
 
 ## Migrations
 
@@ -84,9 +112,9 @@ untouched. Bump the `weatherGen` constant again if `WeatherCheck` ever changes s
   stores / indexes once `db.ts` exists; this file keeps record shapes + rationale.
 - `WeatherCheck.dateStr` and `TrackedForecast.forecastDate` are both `YYYYMMDD` now —
   one `WeatherCheck` row per (location, date) per fetch (day + night temps in that row).
-- The `[symbol+checkedAt]` / `[location+dateStr]` compound indexes are the
-  graph-query access path (all checks for one item, roughly in time order — the
-  graph still sorts by `checkedAt` in memory).
+- The `[symbol+checkedAt]` / `[location+dateStr]` / `[name+checkedAt]` compound
+  indexes are the graph-query access path (all checks for one item, roughly in
+  time order — the graph still sorts by `checkedAt` in memory).
 - The home-location rolling window (today + 9 days, a 10-day window) is **derived**,
   not stored in `TrackedForecast`; only explicitly pinned dates get a registry row.
   (Open: revisit if rolling days should auto-pin.)

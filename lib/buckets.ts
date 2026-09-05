@@ -9,7 +9,7 @@
 // travel) simply produce no column — the delta then spans to whenever the user
 // last checked, which the date headers make legible.
 
-export type Domain = "stock" | "weather";
+export type Domain = "stock" | "weather" | "custom";
 
 export interface NumDatum {
   checkedAt: number; // epoch ms
@@ -34,8 +34,8 @@ export function bucketKey(ts: number, domain: Domain): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   const base = `${y}-${m}-${day}`;
-  if (domain === "stock") return base;
-  return d.getHours() < 12 ? `${base}-AM` : `${base}-PM`;
+  if (domain === "weather") return d.getHours() < 12 ? `${base}-AM` : `${base}-PM`;
+  return base; // "stock" and "custom" both bucket by calendar day
 }
 
 export function bucketLabel(key: string): string {

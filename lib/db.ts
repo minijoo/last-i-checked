@@ -1,7 +1,9 @@
 import Dexie, { type Table } from "dexie";
 import type {
+  CustomCheck,
   Setting,
   StockCheck,
+  TrackedCustom,
   TrackedForecast,
   TrackedStock,
   WeatherCheck,
@@ -15,6 +17,8 @@ export class LicDatabase extends Dexie {
   trackedStocks!: Table<TrackedStock, string>;
   trackedForecasts!: Table<TrackedForecast, number>;
   settings!: Table<Setting, string>;
+  trackedCustoms!: Table<TrackedCustom, string>;
+  customChecks!: Table<CustomCheck, number>;
 
   constructor() {
     super("last-i-checked");
@@ -24,6 +28,8 @@ export class LicDatabase extends Dexie {
       trackedStocks: "symbol, addedAt",
       trackedForecasts: "++id, &[location+forecastDate], addedAt",
       settings: "key",
+      trackedCustoms: "name, addedAt",
+      customChecks: "++id, name, checkedAt, [name+checkedAt]",
     });
   }
 }

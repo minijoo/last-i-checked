@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 const TABS = [
   { href: "/stocks", label: "Stocks" },
   { href: "/weather", label: "Weather" },
+  { href: "/custom", label: "Custom" },
 ];
 
 /** Highlight fully collapsed to the left — used before we've measured, and on

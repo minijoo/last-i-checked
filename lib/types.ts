@@ -44,6 +44,37 @@ export interface Setting {
   value: unknown;
 }
 
+/** Registry: custom URL/selector checks the user is tracking right now. */
+export interface TrackedCustom {
+  name: string; // PK, unique, user-provided
+  url: string;
+  selector: string; // CSS selector for the value's location on the page
+  valueType: "number" | "text";
+  addedAt: number; // epoch ms
+}
+
+/** One row per fetch, per tracked custom check. Append-only. */
+export interface CustomCheck {
+  id?: number; // auto-increment PK
+  checkedAt: number; // epoch ms
+  name: string; // matches TrackedCustom.name, not a foreign key
+  url: string; // snapshot of TrackedCustom.url at fetch time
+  selector: string; // snapshot of TrackedCustom.selector at fetch time
+  valueType: "number" | "text"; // snapshot of TrackedCustom.valueType at fetch time
+  rawText: string; // exact textContent read from the matched element
+  value: number | string | null; // parsed per valueType; null when status is "error"
+  status: "ok" | "error";
+  errorMessage?: string; // present when status is "error"
+}
+
+/** Result of one scrape, returned by the /api/custom-check route handler. */
+export interface CustomScrapeResult {
+  ok: boolean;
+  rawText: string;
+  value: number | string | null;
+  error?: string;
+}
+
 /** A resolved place: what geocoding returns and what we store for a location. */
 export interface LocationRef {
   name: string; // canonical display name, e.g. "Austin, Texas, US"
@@ -89,4 +120,6 @@ export interface BackupBlob {
   trackedStocks: TrackedStock[];
   trackedForecasts: TrackedForecast[];
   settings: Setting[];
+  trackedCustoms?: TrackedCustom[]; // optional: absent in backups made before this store existed
+  customChecks?: CustomCheck[];
 }

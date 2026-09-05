@@ -37,3 +37,15 @@ export function useWeatherChecks(location: string, calKey: string) {
     [location, calKey],
   );
 }
+
+export function useTrackedCustoms() {
+  return useLiveQuery(() => store.getTrackedCustoms());
+}
+
+export function useCustomChecks(name: string) {
+  return useLiveQuery(() => store.getCustomChecks(name), [name]);
+}
+
+export function useAllCustomChecks() {
+  return useLiveQuery(() => store.getAllCustomChecks());
+}

@@ -6,7 +6,13 @@ import { fetchStockQuotes } from "./actions/stocks";
 import { jitterValue, nowForCheck } from "./devtime";
 import { calKeyToIso, todayCalendarKeys } from "./format";
 import { store } from "./store";
-import type { DailyWeather, LocationRef, WeatherCheck } from "./types";
+import type {
+  CustomScrapeResult,
+  DailyWeather,
+  LocationRef,
+  TrackedCustom,
+  WeatherCheck,
+} from "./types";
 
 export const HOME_WINDOW_DAYS = 10;
 
@@ -131,4 +137,51 @@ export async function runWeatherFetch(): Promise<FetchOutcome> {
 
   // Collapse repeated identical errors (e.g. same subscription failure per date).
   return { added, errors: [...new Set(errors)] };
+}
+
+/**
+ * Runs one custom check's fetch via the /api/custom-check route handler (a
+ * plain fetch(), not a Server Action, so concurrent per-card fetches don't
+ * serialize behind Next's client-side action dispatcher) and appends the
+ * resulting CustomCheck row regardless of success or failure.
+ */
+export async function runCustomFetch(tracked: TrackedCustom): Promise<FetchOutcome> {
+  const now = nowForCheck();
+  let result: CustomScrapeResult;
+  try {
+    const res = await fetch("/api/custom-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: tracked.url,
+        selector: tracked.selector,
+        valueType: tracked.valueType,
+      }),
+    });
+    result = await res.json();
+  } catch (e) {
+    result = {
+      ok: false,
+      rawText: "",
+      value: null,
+      error: e instanceof Error ? e.message : "Network error reaching the fetch service.",
+    };
+  }
+
+  await store.appendCustomCheck({
+    checkedAt: now,
+    name: tracked.name,
+    url: tracked.url,
+    selector: tracked.selector,
+    valueType: tracked.valueType,
+    rawText: result.rawText,
+    value: result.value,
+    status: result.ok ? "ok" : "error",
+    errorMessage: result.ok ? undefined : result.error,
+  });
+
+  return {
+    added: 1,
+    errors: result.ok ? [] : [result.error ?? "Fetch failed."],
+  };
 }

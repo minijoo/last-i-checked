@@ -77,7 +77,7 @@ export async function POST(request: Request): Promise<Response> {
 
       const client = new Anthropic({ apiKey });
       const response = await client.messages.parse({
-        model: "claude-opus-5",
+        model: "claude-sonnet-5",
         max_tokens: 1024,
         output_config: {
           format: zodOutputFormat(SuggestionSchema),

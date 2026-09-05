@@ -298,6 +298,11 @@ alongside the scrape route and sharing its `launchBrowser()` / SSRF guard):
    candidate list (selectors are not sent to the model — unnecessary, and it
    only needs to pick a snippet). `output_config.effort: "low"` — this is a
    pick-one-from-a-list classification task, not a reasoning-heavy one.
+   Model is `claude-sonnet-5`, not the app's default-to-Opus choice — cost
+   scales with call volume here (every "Suggest selector" click), and this
+   task shape (short list, structured output) doesn't need Opus-tier
+   reasoning; verified the same three test cases (clean match, harder match,
+   correct no-match) hold up identically on Sonnet 5.
 3. **Server-side verification**, on the still-open page: re-resolve the chosen
    candidate's selector and confirm it still matches exactly one element
    before returning `{ selector, matchedText, confidence }`.

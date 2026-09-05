@@ -23,6 +23,12 @@ export interface DualGraphPoint {
   b: number;
 }
 
+export interface DualAxisPoint {
+  t: number; // epoch ms
+  left: number;
+  right: number;
+}
+
 /**
  * Rounds to the same precision the axis/tooltip display at. Without this, a
  * series whose true values differ only below that precision (e.g. rain
@@ -185,6 +191,123 @@ export function DualCheckGraph({
             type="monotone"
             dataKey="b"
             name={bLabel}
+            stroke="var(--night)"
+            strokeWidth={2}
+            strokeDasharray="5 3"
+            dot={{ r: 3, fill: "var(--night)" }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/**
+ * Two-series variant for series with different units (e.g. rain in inches
+ * and wind speed in mph) — one shared time axis, but each series gets its
+ * own Y axis (left/right) since a shared axis would be meaningless across
+ * units. The right line reuses the --night color/dash from DualCheckGraph
+ * for a consistent "second series" convention across the app, and each
+ * axis's own tick labels are tinted to match their line's color so it's
+ * clear which numbers belong to which series.
+ */
+export function DualAxisGraph({
+  points,
+  leftLabel,
+  rightLabel,
+  leftUnit = "",
+  rightUnit = "",
+  leftDigits = 2,
+  rightDigits = 0,
+}: {
+  points: DualAxisPoint[];
+  leftLabel: string;
+  rightLabel: string;
+  leftUnit?: string;
+  rightUnit?: string;
+  leftDigits?: number;
+  rightDigits?: number;
+}) {
+  if (points.length < 2) {
+    return (
+      <p className="text-sm text-muted">
+        Need at least two checks to draw a graph.
+      </p>
+    );
+  }
+  const data = [...points]
+    .sort((a, b) => a.t - b.t)
+    .map((p) => ({
+      ...p,
+      left: roundToDigits(p.left, leftDigits),
+      right: roundToDigits(p.right, rightDigits),
+    }));
+  return (
+    <div className="h-64 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 8, right: 12, bottom: 8, left: 4 }}>
+          <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+          <XAxis
+            dataKey="t"
+            type="number"
+            scale="time"
+            domain={["dataMin", "dataMax"]}
+            tickFormatter={(t) => formatStamp(Number(t))}
+            tick={{ fill: "var(--muted)", fontSize: 11 }}
+            stroke="var(--border)"
+            minTickGap={40}
+          />
+          <YAxis
+            yAxisId="left"
+            width={48}
+            domain={["auto", "auto"]}
+            tickFormatter={(v) => `${Number(v).toFixed(leftDigits)}`}
+            tick={{ fill: "var(--foreground)", fontSize: 11 }}
+            stroke="var(--border)"
+          />
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            width={48}
+            domain={["auto", "auto"]}
+            tickFormatter={(v) => `${Number(v).toFixed(rightDigits)}`}
+            tick={{ fill: "var(--night)", fontSize: 11 }}
+            stroke="var(--border)"
+          />
+          <Tooltip
+            contentStyle={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              color: "var(--foreground)",
+            }}
+            labelFormatter={(t) => formatStamp(Number(t))}
+            formatter={(v, name) =>
+              name === rightLabel
+                ? [`${Number(v).toFixed(rightDigits)}${rightUnit}`, name]
+                : [`${Number(v).toFixed(leftDigits)}${leftUnit}`, name]
+            }
+          />
+          <Legend
+            wrapperStyle={{ fontSize: 12, color: "var(--muted)" }}
+            iconType="plainline"
+          />
+          <Line
+            yAxisId="left"
+            type="monotone"
+            dataKey="left"
+            name={leftLabel}
+            stroke="var(--foreground)"
+            strokeWidth={2}
+            dot={{ r: 3, fill: "var(--foreground)" }}
+            isAnimationActive={false}
+          />
+          <Line
+            yAxisId="right"
+            type="monotone"
+            dataKey="right"
+            name={rightLabel}
             stroke="var(--night)"
             strokeWidth={2}
             strokeDasharray="5 3"

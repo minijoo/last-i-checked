@@ -19,7 +19,7 @@ import {
 } from "@/lib/hooks";
 import { store } from "@/lib/store";
 import type { WeatherCheck } from "@/lib/types";
-import { fmtRainInches, fmtTemp, numColumnsFor } from "@/lib/weather-view";
+import { fmtRainInches, fmtTemp, fmtWindMph, numColumnsFor } from "@/lib/weather-view";
 
 /** Home-table views. "temp" folds day + night into one table as AM/PM lanes. */
 const HOME_VIEWS = { temp: "Temp", rain: "Rain" } as const;
@@ -71,7 +71,22 @@ function WeatherTable({
       );
       const lanes: WeatherLane[] =
         view === "rain"
-          ? [{ key: "rain", columns: numColumnsFor(subset, "rain") }]
+          ? [
+              {
+                key: "rain",
+                label: "Rain",
+                columns: numColumnsFor(subset, "rain"),
+                format: fmtRainInches,
+                digits: 2,
+              },
+              {
+                key: "wind",
+                label: "Wind Speed",
+                columns: numColumnsFor(subset, "wind"),
+                format: fmtWindMph,
+                digits: 0,
+              },
+            ]
           : [
               { key: "day", label: "AM", columns: numColumnsFor(subset, "day") },
               {

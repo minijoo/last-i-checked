@@ -33,7 +33,7 @@ const MAX_KEY = Dexie.maxKey;
 // useLiveQuery runs its querier read-only and would throw on the write. Live
 // queries re-fire after the clear via Dexie observability, so the UI corrects
 // itself on first load after an upgrade.
-const WEATHER_GEN = "openweather-1";
+const WEATHER_GEN = "openweather-2"; // bumped: WeatherCheck gained windSpeed
 let weatherReadyPromise: Promise<void> | null = null;
 
 function weatherReady(): Promise<void> {

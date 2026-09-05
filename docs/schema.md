@@ -40,6 +40,7 @@ interface WeatherCheck {      // one row per fetch, per (location, date); append
   tempNight: number;          // OpenWeather temp.night / day_summary temperature.night (°F)
   tempUnit: string;           // always "F" (units=imperial)
   rainAmt: number;            // precipitation total for the date, mm (precipitation.total)
+  windSpeed: number;          // mph — OpenWeather wind_speed / day_summary wind.max.speed
   source: "forecast" | "summary"; // date within HOME_WINDOW_DAYS, or a long-range estimate
 }
 
@@ -104,7 +105,8 @@ no keyPath or index, so it needs no Dexie version bump. Incompatible pre-release
 `weatherChecks` rows are dropped by a one-time guard in `store.ts`: on first weather
 access it compares `settings["weatherGen"]` to a constant and, if stale, clears
 `weatherChecks` and writes the new value. `StockCheck` and the stock stores are
-untouched. Bump the `weatherGen` constant again if `WeatherCheck` ever changes shape.
+untouched. Bump the `weatherGen` constant again if `WeatherCheck` ever changes shape
+— most recently bumped to `"openweather-2"` when `windSpeed` was added.
 
 ## Notes
 

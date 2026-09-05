@@ -31,6 +31,7 @@ function toRow(
     tempNight: jitterValue(d.tempNight),
     tempUnit: "F",
     rainAmt: d.rainAmt,
+    windSpeed: d.windSpeed,
     source: d.source,
   };
 }

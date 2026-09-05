@@ -20,6 +20,7 @@ export interface WeatherCheck {
   tempNight: number; // °F — OpenWeather temp.night / day_summary temperature.night
   tempUnit: string; // always "F"
   rainAmt: number; // precipitation total for the date, in mm (as OpenWeather returns it)
+  windSpeed: number; // mph — OpenWeather wind_speed / day_summary wind.max.speed
   source: "forecast" | "summary"; // 16-day daily forecast, or day_summary
 }
 
@@ -99,6 +100,7 @@ export interface DailyWeather {
   tempDay: number; // °F
   tempNight: number; // °F
   rainAmt: number; // mm
+  windSpeed: number; // mph
   source: "forecast" | "summary";
 }
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { CheckGraph, DualCheckGraph } from "@/components/CheckGraph";
+import { DualAxisGraph, DualCheckGraph } from "@/components/CheckGraph";
 import { DeltaColumns } from "@/components/DeltaColumns";
 import { FetchBar } from "@/components/FetchBar";
 import { Card, SectionTitle } from "@/components/ui";
@@ -11,7 +11,7 @@ import { runWeatherFetch } from "@/lib/fetchers";
 import { mmToInches, parseCalendarKey } from "@/lib/format";
 import { useWeatherChecks } from "@/lib/hooks";
 import type { WeatherCheck } from "@/lib/types";
-import { fmtRainInches, fmtTemp, numColumnsFor } from "@/lib/weather-view";
+import { fmtRainInches, fmtTemp, fmtWindMph, numColumnsFor } from "@/lib/weather-view";
 
 export default function WeatherDayPage() {
   return (
@@ -74,15 +74,7 @@ function DayView() {
       ) : (
         <>
           <TempMetric checks={checks} unit={unit} />
-          <Metric
-            title="Rain"
-            checks={checks}
-            value={(c) => mmToInches(c.rainAmt)}
-            metric="rain"
-            format={fmtRainInches}
-            graphUnit={'"'}
-            digits={2}
-          />
+          <RainWindMetric checks={checks} />
         </>
       )}
     </div>
@@ -124,38 +116,43 @@ function TempMetric({ checks, unit }: { checks: WeatherCheck[]; unit: string }) 
   );
 }
 
-function Metric({
-  title,
-  checks,
-  value,
-  metric = "day",
-  format,
-  graphUnit,
-  digits,
-}: {
-  title: string;
-  checks: WeatherCheck[];
-  value: (c: WeatherCheck) => number;
-  metric?: "day" | "night" | "rain";
-  format: (n: number) => string;
-  graphUnit: string;
-  digits: number;
-}) {
+function RainWindMetric({ checks }: { checks: WeatherCheck[] }) {
   return (
     <section className="flex flex-col gap-3">
-      <SectionTitle>{title}</SectionTitle>
+      <SectionTitle>Rain &amp; wind</SectionTitle>
       <Card>
-        <CheckGraph
-          points={checks.map((c) => ({ t: c.checkedAt, v: value(c) }))}
-          unit={graphUnit}
-          digits={digits}
+        <DualAxisGraph
+          points={checks.map((c) => ({
+            t: c.checkedAt,
+            left: mmToInches(c.rainAmt),
+            right: c.windSpeed,
+          }))}
+          leftLabel="Rain"
+          rightLabel="Wind Speed"
+          leftUnit={'"'}
+          rightUnit=" mph"
+          leftDigits={2}
+          rightDigits={0}
         />
       </Card>
-      <DeltaColumns
-        columns={numColumnsFor(checks, metric)}
-        format={format}
-        digits={digits}
-      />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted">Rain</span>
+          <DeltaColumns
+            columns={numColumnsFor(checks, "rain")}
+            format={fmtRainInches}
+            digits={2}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted">Wind Speed</span>
+          <DeltaColumns
+            columns={numColumnsFor(checks, "wind")}
+            format={fmtWindMph}
+            digits={0}
+          />
+        </div>
+      </div>
     </section>
   );
 }

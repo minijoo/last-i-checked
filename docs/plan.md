@@ -80,8 +80,10 @@ and any item on its first-ever check, show a value with no delta.
 - `rainAmt` is a quantity of rain for the date (OpenWeather precipitation total).
   OpenWeather always returns precipitation in **mm** even with `units=imperial`; the UI
   converts to inches for display.
-- Weather has three numbers per date — day temp, night temp, rain amount — surfaced via
-  a Day / Night / Rain view toggle. Each is a plain number with a numeric delta.
+- Weather has four numbers per date — day temp, night temp, rain amount, wind speed —
+  surfaced via a Temp / Rain view toggle (Temp splits into Day/Night lanes; Rain splits
+  into Rain/Wind Speed lanes, both using the same AM/PM-style lane-label pattern). Each
+  is a plain number with a numeric delta.
 - The single-item detail page still plots **every raw check** on its graph; the columnar
   view is the list/home-screen summary.
 - How many columns: a few on the list view, more on the detail page (exact counts TBD
@@ -110,10 +112,14 @@ the cliff feels wrong in practice.
     - Searching a location should asynchronously provide location suggestions from
       OpenWeather's geocoding API. Autocomplete should debounce to avoid unnecessary
       calls. Any city on the globe is allowed (results show city, state/region, country).
-    - View can be toggled between day temperature, night temperature, and rain amount
-      (`mockups/weather-rain.png`).
-    - Each date carries a day temperature and a night temperature in one `WeatherCheck`
-      row (no separate day/night rows).
+    - View can be toggled between day/night temperature and rain/wind speed
+      (`mockups/weather-rain.png`). The Temp graph on the detail page plots day and
+      night as two lines sharing one axis (hover shows both); the Rain graph plots
+      rain and wind speed on **separate Y axes** (different units — inches vs. mph)
+      sharing one time axis, wind speed in the same secondary color/dash convention
+      as the night-temp line.
+    - Each date carries a day temperature, night temperature, rain amount, and wind
+      speed in one `WeatherCheck` row (no separate rows per metric).
     - Click into a single day view, and you can see a graph of the most recent checks
       you've made for that day/location. (`mockups/weather-day-page.png`)
 
@@ -199,11 +205,14 @@ _High-level only; details go in `docs/schema.md`._
       One call returns exactly 10 days, `data[0]` = today. Each `data[x]` has `dt`
       (00:00 UTC of the forecast date — take year/month/day from the **UTC** date
       regardless of the request point), `temp.day`, `temp.night`, `rain` (mm, absent
-      ⇒ 0). `source: "forecast"`.
+      ⇒ 0), `wind_speed` (mph — flat field, verified against a live call). `source:
+      "forecast"`.
     - **Dates past the 10-day window — One Call 3.0 day summary**, one call per date:
       `GET https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={lat}&lon={lon}&date={YYYY-MM-DD}&units=imperial&appid={key}`
       Use `temperature.afternoon` (day), `temperature.night` (night),
-      `precipitation.total` (mm). `source: "summary"`.
+      `precipitation.total` (mm), `wind.max.speed` (mph — nested differently than the
+      timeline endpoint's flat `wind_speed`, verified against a live call). `source:
+      "summary"`.
     - Per tracked date: within `HOME_WINDOW_DAYS` ⇒ take it from the single timeline
       call; further out ⇒ one `day_summary` call each (in parallel per location).
       Past dates fetch nothing.

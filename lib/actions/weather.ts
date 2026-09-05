@@ -46,6 +46,7 @@ export async function fetchTimeline(
       tempDay: d.temp?.day ?? NaN,
       tempNight: d.temp?.night ?? NaN,
       rainAmt: typeof d.rain === "number" ? d.rain : 0,
+      windSpeed: d.wind_speed ?? NaN,
       source: "forecast",
     }));
     return { ok: true, days };
@@ -90,6 +91,7 @@ export async function fetchDaySummary(
         tempDay: json.temperature?.afternoon ?? NaN,
         tempNight: json.temperature?.night ?? NaN,
         rainAmt: json.precipitation?.total ?? 0,
+        windSpeed: json.wind?.max?.speed ?? NaN,
         source,
       },
     };
@@ -115,10 +117,12 @@ export async function fetchDaySummaries(
 interface RawSummary {
   temperature?: { afternoon?: number; night?: number };
   precipitation?: { total?: number };
+  wind?: { max?: { speed?: number } };
 }
 
 interface RawTimelineDay {
   dt: number;
   temp?: { day?: number; night?: number };
   rain?: number;
+  wind_speed?: number;
 }

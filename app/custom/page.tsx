@@ -86,7 +86,7 @@ export default function CustomPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Custom checks</h1>
         <p className="mt-1 text-sm text-muted">
-          Track any value on any page by URL and CSS selector. Finding a selector
+          Track any value on any public page by URL and CSS selector. Finding a selector
           needs a desktop browser&apos;s devtools — running a check works from any
           device.
         </p>

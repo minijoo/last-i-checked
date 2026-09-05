@@ -10,6 +10,8 @@ export interface WeatherLane {
   key: string;
   label?: string;
   columns: NumColumn[]; // newest first, from toColumns()
+  format?: (n: number) => string; // overrides the table-level format for this lane
+  digits?: number; // overrides the table-level digits for this lane's delta
 }
 
 export interface WeatherRow {
@@ -94,6 +96,8 @@ export function WeatherMatrix({
                         </td>
                       );
                     }
+                    const fmt = lane.format ?? format;
+                    const dig = lane.digits ?? digits;
                     const older =
                       lane.columns[
                         lane.columns.findIndex((x) => x.key === c.key) + 1
@@ -101,10 +105,8 @@ export function WeatherMatrix({
                     const title =
                       cell.delta === null
                         ? `First recorded check, ${formatStamp(cell.at)}`
-                        : `${format(cell.value)} on ${cell.label}${
-                            older
-                              ? ` vs ${format(older.value)} on ${older.label}`
-                              : ""
+                        : `${fmt(cell.value)} on ${cell.label}${
+                            older ? ` vs ${fmt(older.value)} on ${older.label}` : ""
                           }`;
                     return (
                       <td
@@ -113,10 +115,10 @@ export function WeatherMatrix({
                         className="px-2 py-2 text-center"
                       >
                         <div className="font-mono tabular-nums">
-                          {format(cell.value)}
+                          {fmt(cell.value)}
                         </div>
                         <div className="text-xs">
-                          <Delta value={cell.delta} digits={digits} />
+                          <Delta value={cell.delta} digits={dig} />
                         </div>
                       </td>
                     );

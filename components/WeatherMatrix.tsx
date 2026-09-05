@@ -8,7 +8,7 @@ import { Delta } from "./Delta";
  *  small bordered pill; omit it for a single-band row (rain). */
 export interface WeatherLane {
   key: string;
-  label?: string;
+  label?: ReactNode;
   columns: NumColumn[]; // newest first, from toColumns()
   format?: (n: number) => string; // overrides the table-level format for this lane
   digits?: number; // overrides the table-level digits for this lane's delta

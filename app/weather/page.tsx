@@ -22,7 +22,7 @@ import type { WeatherCheck } from "@/lib/types";
 import { fmtRainInches, fmtTemp, fmtWindMph, numColumnsFor } from "@/lib/weather-view";
 
 /** Home-table views. "temp" folds day + night into one table as AM/PM lanes. */
-const HOME_VIEWS = { temp: "Temp", rain: "Rain" } as const;
+const HOME_VIEWS = { temp: "Temp", rain: "Rain/Wind" } as const;
 type HomeView = keyof typeof HOME_VIEWS;
 
 interface Entry {
@@ -81,7 +81,13 @@ function WeatherTable({
               },
               {
                 key: "wind",
-                label: "Wind Speed",
+                label: (
+                  <>
+                    Wind
+                    <br />
+                    Speed
+                  </>
+                ),
                 columns: numColumnsFor(subset, "wind"),
                 format: fmtWindMph,
                 digits: 0,

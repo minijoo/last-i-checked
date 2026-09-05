@@ -56,3 +56,18 @@ body {
     transition: none;
   }
 }
+
+/* iOS Safari auto-zooms the viewport when a focused form field's effective
+   font-size is under 16px, and never zooms back out on blur — a real UX
+   annoyance, not just cosmetic. Force 16px on small viewports only (desktop
+   keeps the smaller text-sm look). !important is needed here: Tailwind's
+   text-sm utility class has higher specificity than a plain element
+   selector, and this needs to win regardless of which utility classes any
+   given input carries, now or in the future. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

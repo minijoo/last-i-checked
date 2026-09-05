@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { CheckGraph } from "@/components/CheckGraph";
+import { CheckGraph, DualCheckGraph } from "@/components/CheckGraph";
 import { DeltaColumns } from "@/components/DeltaColumns";
 import { FetchBar } from "@/components/FetchBar";
 import { Card, SectionTitle } from "@/components/ui";
@@ -73,22 +73,7 @@ function DayView() {
         </Card>
       ) : (
         <>
-          <Metric
-            title="Day temperature"
-            checks={checks}
-            value={(c) => c.tempDay}
-            format={fmtTemp(unit)}
-            graphUnit={`°${unit}`}
-            digits={0}
-          />
-          <Metric
-            title="Night temperature"
-            checks={checks}
-            value={(c) => c.tempNight}
-            format={fmtTemp(unit)}
-            graphUnit={`°${unit}`}
-            digits={0}
-          />
+          <TempMetric checks={checks} unit={unit} />
           <Metric
             title="Rain"
             checks={checks}
@@ -101,6 +86,41 @@ function DayView() {
         </>
       )}
     </div>
+  );
+}
+
+function TempMetric({ checks, unit }: { checks: WeatherCheck[]; unit: string }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionTitle>Temperature</SectionTitle>
+      <Card>
+        <DualCheckGraph
+          points={checks.map((c) => ({ t: c.checkedAt, a: c.tempDay, b: c.tempNight }))}
+          aLabel="Day"
+          bLabel="Night"
+          unit={`°${unit}`}
+          digits={0}
+        />
+      </Card>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted">Day</span>
+          <DeltaColumns
+            columns={numColumnsFor(checks, "day")}
+            format={fmtTemp(unit)}
+            digits={0}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted">Night</span>
+          <DeltaColumns
+            columns={numColumnsFor(checks, "night")}
+            format={fmtTemp(unit)}
+            digits={0}
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -256,6 +256,17 @@ _High-level only; details go in `docs/schema.md`._
   every plan including Hobby) already covers a worst-case ~30s scrape, but a real
   Chromium instance is memory-hungry enough that the default memory allocation is worth
   overriding too.
+- **`outputFileTracingIncludes` is required for `playwright-core` on Vercel.**
+  Next's build-time file tracer (`@vercel/nft`) doesn't follow how
+  `playwright-core` locates `browsers.json` (and a couple of other
+  package-root files) at runtime, so without this config those files are
+  silently dropped from the deployed function and the route 500s in
+  production only — `next build` and local dev both work fine, so this is
+  easy to miss until it's live. Confirmed via each route's
+  `.next/server/app/**/route.js.nft.json` before/after: `browsers.json` was
+  absent from the trace, then present once `outputFileTracingIncludes` named
+  `node_modules/playwright-core/**/*` for both `/api/custom-check` and
+  `/api/custom-check/suggest-selector` in `next.config.ts`.
 
 ## AI-Assisted Selector Suggestion — Technical Approach
 

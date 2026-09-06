@@ -12,13 +12,19 @@
   is left intact, so re-adding the same symbol or location-date later resurfaces
   its past checks in the graph.
 - History is matched to an item **by value, not by a foreign key**: `StockCheck`
-  by `symbol`, `WeatherCheck` by `(location, dateStr)`, `CustomCheck` by `name`.
-  That value match is what makes untrack → re-track non-destructive.
+  by `symbol`, `WeatherCheck` by `(location, dateStr)`, `CustomCheck` by `name`,
+  `SportsbookCheck` by `trackKey`. That value match is what makes untrack → re-track
+  non-destructive.
 - `CustomCheck` also snapshots the `url` / `selector` / `valueType` used at fetch
   time (not just a lookup against the current `TrackedCustom` row), the same way
   `WeatherCheck` snapshots `location` / `latLong` — so a check's history stays
   interpretable even after the user edits the tracked config, and a bad fetch is
   debuggable from the row alone.
+- `SportsbookCheck` is append-only like the others, matched to its
+  `TrackedSportsbook` row by `trackKey` (a joined coordinate tuple with **no `point`
+  in it** — line moves must not orphan history). It snapshots the raw Odds API
+  `Outcome` JSON (`rawOutcome`) alongside the extracted `price` / `point`, so a check
+  stays interpretable if the upstream schema drifts. Full design: `docs/sportsbook.md`.
 
 ## Record types
 
@@ -38,7 +44,9 @@ interface WeatherCheck {      // one row per fetch, per (location, date); append
   latLong: number[];          // [lat, long]
   tempDay: number;            // OpenWeather temp.day / day_summary temperature.afternoon (°F)
   tempNight: number;          // OpenWeather temp.night / day_summary temperature.night (°F)
-  tempUnit: string;           // always "F" (units=imperial)
+  tempUnit: string;           // always "F" (units=imperial) — display unit is the
+                              // Setting "tempUnit" ("F" | "C"), applied client-side
+
   rainAmt: number;            // precipitation total for the date, mm (precipitation.total)
   windSpeed: number;          // mph — OpenWeather wind_speed / day_summary wind.max.speed
   source: "forecast" | "summary"; // date within HOME_WINDOW_DAYS, or a long-range estimate
@@ -82,6 +90,40 @@ interface CustomCheck {       // one row per fetch, per tracked custom check; ap
   status: "ok" | "error";
   errorMessage?: string;        // present when status is "error"
 }
+
+interface TrackedSportsbook { // registry: one row per pinned sportsbook outcome
+  id: number;                 // auto-increment PK
+  addedAt: number;            // epoch ms
+  // re-fetch coordinates
+  sportKey: string;           // "americanfootball_nfl"
+  sportTitle: string;         // "NFL" — display
+  eventId: string;            // "" for futures / outright sports
+  eventName: string;          // `${away} @ ${home}`, or the futures title
+  commenceTime: number;       // epoch ms — drives the "closed" status
+  region: string;             // "us" (default); one region per check for now
+  marketKey: string;          // "player_pass_tds"
+  marketLabel: string;        // "Player Pass TDs" — display, from the market map
+  bookmakerKey: string;       // "draftkings"
+  bookmakerTitle: string;     // "DraftKings"
+  // outcome identity — stable fields only (no `point`)
+  outcomeName: string;        // "Over"
+  outcomeDescription: string | null; // player name for props/futures, else null
+  oddsFormat: "american";     // the coordinates above ARE the refetch template; no apiKey stored
+}
+// `status` ("active" | "unavailable" | "closed") is derived at render from
+// commenceTime + the latest check, not stored on the row.
+
+interface SportsbookCheck {   // one row per fetch, per pinned outcome; append-only
+  id: number;                 // auto-increment PK
+  checkedAt: number;          // epoch ms
+  trackKey: string;           // sportKey|eventId|region|bookmakerKey|marketKey|outcomeName|(outcomeDescription ?? "")
+  price: number | null;       // American (or decimal) odds; null if outcome absent this fetch
+  point: number | null;       // line; null for h2h / when absent
+  oddsFormat: "american" | "decimal";
+  lastUpdate: number;         // epoch ms — bookmaker.last_update ?? market.last_update
+  rawOutcome: unknown;        // raw Odds API Outcome JSON — schema-drift insurance
+  status: "ok" | "unavailable"; // "unavailable" = fetch ok but this outcome wasn't in it
+}
 ```
 
 ## Object stores
@@ -95,6 +137,8 @@ interface CustomCheck {       // one row per fetch, per tracked custom check; ap
 | `Setting`         | `key`    | no            | —                                            |
 | `TrackedCustom`   | `name`   | no            | `addedAt`                                     |
 | `CustomCheck`     | `id`     | yes           | `name`, `checkedAt`, `[name+checkedAt]`       |
+| `TrackedSportsbook` | `id`   | yes           | `addedAt`, `[eventId+marketKey+region]`       |
+| `SportsbookCheck` | `id`     | yes           | `trackKey`, `checkedAt`, `[trackKey+checkedAt]` |
 
 ## Migrations
 
@@ -114,9 +158,23 @@ untouched. Bump the `weatherGen` constant again if `WeatherCheck` ever changes s
   stores / indexes once `db.ts` exists; this file keeps record shapes + rationale.
 - `WeatherCheck.dateStr` and `TrackedForecast.forecastDate` are both `YYYYMMDD` now —
   one `WeatherCheck` row per (location, date) per fetch (day + night temps in that row).
-- The `[symbol+checkedAt]` / `[location+dateStr]` / `[name+checkedAt]` compound
-  indexes are the graph-query access path (all checks for one item, roughly in
-  time order — the graph still sorts by `checkedAt` in memory).
+- The `[symbol+checkedAt]` / `[location+dateStr]` / `[name+checkedAt]` /
+  `[trackKey+checkedAt]` compound indexes are the graph-query access path (all checks
+  for one item, roughly in time order — the graph still sorts by `checkedAt` in
+  memory).
+- `Setting` rows in use: `homeLocation` (`{ name, latLong } | null`), `weatherGen`
+  (schema-generation guard for `WeatherCheck`), `tempUnit` (`"F"` | `"C"` display
+  preference — see `useTempUnit` / `lib/weather-view.ts`), and the sportsbook pair
+  below.
+- Sportsbook credit accounting lives in `Setting` rows, not a store:
+  `oddsApiKey` (the user's own Odds API key, or empty) and `sportsbookCredits`
+  (`{ month: "YYYY-MM", used: number }`, read as 0 on month rollover or data-clear).
+  See `lib/sportsbookCredits.ts`.
+- `SportsbookCheck.trackKey` is the joined coordinate tuple
+  `sportKey|eventId|region|bookmakerKey|marketKey|outcomeName|(outcomeDescription ?? "")`
+  (see `docs/sportsbook.md`) — `point` is deliberately not in it, so a line move
+  can't orphan a check's history. `[eventId+marketKey+region]` on `TrackedSportsbook`
+  is the home-page section-grouping path (one Fetch button per section).
 - The home-location rolling window (today + 9 days, a 10-day window) is **derived**,
   not stored in `TrackedForecast`; only explicitly pinned dates get a registry row.
   (Open: revisit if rolling days should auto-pin.)

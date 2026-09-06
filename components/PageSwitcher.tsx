@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 const TABS = [
   { href: "/stocks", label: "Stocks" },
   { href: "/weather", label: "Weather" },
+  { href: "/sportsbook", label: "Sportsbook" },
   { href: "/custom", label: "Custom" },
 ];
 

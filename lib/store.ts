@@ -7,14 +7,17 @@
 import Dexie from "dexie";
 import { getDb } from "./db";
 import { calendarKey } from "./format";
+import { makeTrackKey } from "./sportsbook";
 import type {
   BackupBlob,
   CustomCheck,
   LocationRef,
   Setting,
+  SportsbookCheck,
   StockCheck,
   TrackedCustom,
   TrackedForecast,
+  TrackedSportsbook,
   TrackedStock,
   WeatherCheck,
 } from "./types";
@@ -85,6 +88,20 @@ export interface Store {
   appendCustomCheck(check: Omit<CustomCheck, "id">): Promise<void>;
   getCustomChecks(name: string): Promise<CustomCheck[]>; // ascending by checkedAt
   getAllCustomChecks(): Promise<CustomCheck[]>
+
+  // --- sportsbook: registry ---
+  getTrackedSportsbook(): Promise<TrackedSportsbook[]>;
+  addTrackedSportsbook(
+    rows: Array<Omit<TrackedSportsbook, "id" | "addedAt">>,
+  ): Promise<Array<Omit<TrackedSportsbook, "id">>>; // the rows actually added (deduped)
+  removeTrackedSportsbook(id: number): Promise<void>;
+
+  // --- sportsbook: append-only checks ---
+  appendSportsbookChecks(
+    checks: Array<Omit<SportsbookCheck, "id">>,
+  ): Promise<void>;
+  getSportsbookChecks(trackKey: string): Promise<SportsbookCheck[]>; // ascending
+  getAllSportsbookChecks(): Promise<SportsbookCheck[]>;
 
   // --- generic settings ---
   getSetting<T = unknown>(key: string): Promise<T | undefined>;
@@ -222,6 +239,55 @@ class LocalStore implements Store {
     return getDb().customChecks.orderBy("checkedAt").toArray();
   }
 
+  getTrackedSportsbook(): Promise<TrackedSportsbook[]> {
+    return getDb().trackedSportsbook.orderBy("addedAt").toArray();
+  }
+
+  async addTrackedSportsbook(
+    rows: Array<Omit<TrackedSportsbook, "id" | "addedAt">>,
+  ): Promise<Array<Omit<TrackedSportsbook, "id">>> {
+    if (rows.length === 0) return [];
+    const db = getDb();
+    const existing = new Set(
+      (await db.trackedSportsbook.toArray()).map((r) => makeTrackKey(r)),
+    );
+    const seen = new Set<string>();
+    const now = Date.now();
+    const fresh = rows
+      .filter((r) => {
+        const k = makeTrackKey(r);
+        if (existing.has(k) || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .map((r) => ({ ...r, addedAt: now }));
+    if (fresh.length > 0) await db.trackedSportsbook.bulkAdd(fresh);
+    return fresh;
+  }
+
+  async removeTrackedSportsbook(id: number): Promise<void> {
+    // Deletes only the registry row; SportsbookCheck history is left intact.
+    await getDb().trackedSportsbook.delete(id);
+  }
+
+  async appendSportsbookChecks(
+    checks: Array<Omit<SportsbookCheck, "id">>,
+  ): Promise<void> {
+    if (checks.length === 0) return;
+    await getDb().sportsbookChecks.bulkAdd(checks as SportsbookCheck[]);
+  }
+
+  getSportsbookChecks(trackKey: string): Promise<SportsbookCheck[]> {
+    return getDb()
+      .sportsbookChecks.where("[trackKey+checkedAt]")
+      .between([trackKey, MIN_KEY], [trackKey, MAX_KEY])
+      .toArray();
+  }
+
+  getAllSportsbookChecks(): Promise<SportsbookCheck[]> {
+    return getDb().sportsbookChecks.orderBy("checkedAt").toArray();
+  }
+
   async getSetting<T = unknown>(key: string): Promise<T | undefined> {
     const row = await getDb().settings.get(key);
     return row ? (row.value as T) : undefined;
@@ -241,6 +307,8 @@ class LocalStore implements Store {
       settings,
       trackedCustoms,
       customChecks,
+      trackedSportsbook,
+      sportsbookChecks,
     ] = await Promise.all([
       db.stockChecks.toArray(),
       db.weatherChecks.toArray(),
@@ -249,6 +317,8 @@ class LocalStore implements Store {
       db.settings.toArray(),
       db.trackedCustoms.toArray(),
       db.customChecks.toArray(),
+      db.trackedSportsbook.toArray(),
+      db.sportsbookChecks.toArray(),
     ]);
     return {
       app: "last-i-checked",
@@ -261,6 +331,8 @@ class LocalStore implements Store {
       settings,
       trackedCustoms,
       customChecks,
+      trackedSportsbook,
+      sportsbookChecks,
     };
   }
 
@@ -282,6 +354,8 @@ class LocalStore implements Store {
         db.settings,
         db.trackedCustoms,
         db.customChecks,
+        db.trackedSportsbook,
+        db.sportsbookChecks,
       ],
       async () => {
         if (mode === "replace") {
@@ -293,6 +367,8 @@ class LocalStore implements Store {
             db.settings.clear(),
             db.trackedCustoms.clear(),
             db.customChecks.clear(),
+            db.trackedSportsbook.clear(),
+            db.sportsbookChecks.clear(),
           ]);
         }
         // Drop ids so append-only rows re-key cleanly and never collide.
@@ -312,6 +388,12 @@ class LocalStore implements Store {
         await db.trackedCustoms.bulkPut(blob.trackedCustoms ?? []);
         await db.customChecks.bulkAdd(
           strip(blob.customChecks ?? []) as CustomCheck[],
+        );
+        await db.trackedSportsbook.bulkPut(
+          strip(blob.trackedSportsbook ?? []) as TrackedSportsbook[],
+        );
+        await db.sportsbookChecks.bulkAdd(
+          strip(blob.sportsbookChecks ?? []) as SportsbookCheck[],
         );
       },
     );

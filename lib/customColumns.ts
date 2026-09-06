@@ -2,7 +2,7 @@
 // lib/buckets.ts, but tolerates a text value: a bucket's delta is only
 // computed when it and the previous populated bucket are both numbers.
 
-import { bucketKey, bucketLabel } from "./buckets";
+import { bucketKey, bucketLabel } from "./buckets.ts";
 
 export interface CustomDatum {
   checkedAt: number;
@@ -17,8 +17,12 @@ export interface CustomColumn {
   delta: number | null;
 }
 
-function round(x: number): number {
-  return Math.round(x * 1e6) / 1e6;
+/** Custom-check deltas are capped at 5 decimal places — two beyond common
+ *  fine-grained cases like batting average (.312) and win percentage. */
+export const CUSTOM_DELTA_DIGITS = 5;
+
+function round5(x: number): number {
+  return Math.round(x * 1e5) / 1e5;
 }
 
 export function toCustomColumns(
@@ -36,7 +40,7 @@ export function toCustomColumns(
     const prev = i > 0 ? byBucket.get(keys[i - 1]) : undefined;
     const delta =
       typeof d.value === "number" && prev && typeof prev.value === "number"
-        ? round(d.value - prev.value)
+        ? round5(d.value - prev.value)
         : null;
     return { key, label: bucketLabel(key), at: d.checkedAt, value: d.value, delta };
   });

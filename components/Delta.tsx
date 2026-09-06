@@ -1,13 +1,17 @@
 import { formatDelta } from "@/lib/format";
 
-/** A signed delta: green ▲ up, red ▼ down, grey flat, "—" when there's no baseline. */
+/** A signed delta: green ▲ up, red ▼ down, grey flat, "—" when there's no
+ *  baseline. `digits` is the precision; with `trimZeros` it's a cap and
+ *  trailing zeros are dropped (e.g. custom checks tracking batting average). */
 export function Delta({
   value,
   digits = 2,
+  trimZeros = false,
   className = "",
 }: {
   value: number | null;
   digits?: number;
+  trimZeros?: boolean;
   className?: string;
 }) {
   if (value === null) {
@@ -20,12 +24,18 @@ export function Delta({
   const color =
     dir === "up" ? "text-up" : dir === "down" ? "text-down" : "text-muted";
   const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "▬";
+  const body =
+    dir === "flat"
+      ? trimZeros
+        ? "0"
+        : (0).toFixed(digits)
+      : formatDelta(shown, digits, trimZeros);
   return (
     <span className={`tabular-nums ${color} ${className}`}>
       <span aria-hidden className="text-[0.85em]">
         {arrow}
       </span>{" "}
-      {dir === "flat" ? (0).toFixed(digits) : formatDelta(shown, digits)}
+      {body}
     </span>
   );
 }

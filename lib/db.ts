@@ -2,9 +2,11 @@ import Dexie, { type Table } from "dexie";
 import type {
   CustomCheck,
   Setting,
+  SportsbookCheck,
   StockCheck,
   TrackedCustom,
   TrackedForecast,
+  TrackedSportsbook,
   TrackedStock,
   WeatherCheck,
 } from "./types";
@@ -19,6 +21,8 @@ export class LicDatabase extends Dexie {
   settings!: Table<Setting, string>;
   trackedCustoms!: Table<TrackedCustom, string>;
   customChecks!: Table<CustomCheck, number>;
+  trackedSportsbook!: Table<TrackedSportsbook, number>;
+  sportsbookChecks!: Table<SportsbookCheck, number>;
 
   constructor() {
     super("last-i-checked");
@@ -30,6 +34,8 @@ export class LicDatabase extends Dexie {
       settings: "key",
       trackedCustoms: "name, addedAt",
       customChecks: "++id, name, checkedAt, [name+checkedAt]",
+      trackedSportsbook: "++id, addedAt, [eventId+marketKey+region]",
+      sportsbookChecks: "++id, trackKey, checkedAt, [trackKey+checkedAt]",
     });
   }
 }

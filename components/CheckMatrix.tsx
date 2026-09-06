@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { NumColumn } from "@/lib/buckets";
 import { formatStamp } from "@/lib/format";
-import { unionAxis } from "@/lib/matrix";
+import { type AxisCol, relDaySpans, unionAxis } from "@/lib/matrix";
 import { Delta } from "./Delta";
 
 export interface NumRow {
@@ -12,27 +12,52 @@ export interface NumRow {
 
 const cellBlank = <span className="text-muted">·</span>;
 
-/** Shared table shell (date axis + sticky row-label column). Also used by
- *  CustomMatrix, which needs the same layout for non-numeric columns. */
+/** Shared table shell: a two-row date axis (relative day merged over absolute
+ *  dates) plus the sticky row-label column. Also used by CustomMatrix. */
 export function Shell({
   axis,
   children,
 }: {
-  axis: { key: string; label: string }[];
+  axis: AxisCol[];
   children: ReactNode;
 }) {
+  const spans = relDaySpans(axis);
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="text-xs text-muted">
-            <th className="sticky left-0 z-10 bg-surface px-2 py-1.5 text-left font-medium" />
+            <th
+              rowSpan={3}
+              className="sticky left-0 z-10 bg-surface px-2 py-1.5 text-left font-medium"
+            />
+            {spans.map((g) => (
+              <th
+                key={g.key}
+                colSpan={g.span}
+                className="whitespace-nowrap px-2 pt-1.5 pb-0.5 text-center font-medium"
+              >
+                {g.relLabel}
+              </th>
+            ))}
+          </tr>
+          <tr className="text-[0.7rem] text-muted">
             {axis.map((c) => (
               <th
                 key={c.key}
-                className="whitespace-nowrap px-2 py-1.5 text-center font-medium"
+                className="whitespace-nowrap px-2 text-center font-normal"
               >
-                {c.label}
+                {c.absLabel}
+              </th>
+            ))}
+          </tr>
+          <tr className="text-[0.65rem] text-muted">
+            {axis.map((c) => (
+              <th
+                key={c.key}
+                className="whitespace-nowrap px-2 pb-1.5 text-center font-normal opacity-80"
+              >
+                {c.timeLabel}
               </th>
             ))}
           </tr>

@@ -7,14 +7,23 @@ export function formatPrice(n: number): string {
   });
 }
 
-/** Signed delta, e.g. "+3.10", "-0.42", "0.00". */
-export function formatDelta(n: number, digits = 2): string {
+/** Signed delta, e.g. "+3.10", "-0.42", "0.00". With `trim`, `digits` is a cap
+ *  and trailing zeros are dropped: "+3.1", "-0.005", "+42". */
+export function formatDelta(n: number, digits = 2, trim = false): string {
   const sign = n > 0 ? "+" : n < 0 ? "-" : "";
-  return `${sign}${Math.abs(n).toFixed(digits)}`;
+  const mag = trim
+    ? String(Number(Math.abs(n).toFixed(digits)))
+    : Math.abs(n).toFixed(digits);
+  return `${sign}${mag}`;
 }
 
 export function formatTemp(n: number, unit: string): string {
   return `${Math.round(n)}°${unit}`;
+}
+
+/** °F → °C. Weather is always fetched/stored in °F; Celsius is a display choice. */
+export function fToC(f: number): number {
+  return (f - 32) * (5 / 9);
 }
 
 /** OpenWeather returns precipitation in mm; the app shows inches. */
@@ -34,6 +43,13 @@ export function formatStamp(ts: number): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+/** "10:51PM" — compact time of day, for the column-header sub-line. */
+export function formatClock(ts: number): string {
+  return new Date(ts)
+    .toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    .replace(/\s+/g, "");
 }
 
 /** "Sep 1" — date only. */

@@ -1,24 +1,24 @@
 import type { ReactNode } from "react";
-import { type CustomColumn, CUSTOM_DELTA_DIGITS } from "@/lib/customColumns";
 import { unionAxis } from "@/lib/matrix";
+import { formatAmerican, type OddsColumn } from "@/lib/sportsbook";
 import { rowHeadClass, Shell } from "./CheckMatrix";
-import { Delta } from "./Delta";
+import { OddsDelta } from "./OddsDelta";
 
-export interface CustomMatrixRow {
+export interface SportsbookRow {
   id: string;
   label: ReactNode;
-  columns: CustomColumn[]; // newest first, from toCustomColumns() — "ok" checks only
+  columns: OddsColumn[]; // newest first, from toOddsColumns()
 }
 
 const cellBlank = <span className="text-muted">·</span>;
 
-/** Consolidated custom-checks table: shared date axis, one row per tracked
- *  check. Values may be numbers or text; deltas only render where numeric. */
-export function CustomMatrix({
+/** One home-page section's table: shared half-day axis, one row per pinned
+ *  outcome. Cell = American odds + the implied-probability delta. */
+export function SportsbookMatrix({
   rows,
-  maxCols = 4,
+  maxCols = 5,
 }: {
-  rows: CustomMatrixRow[];
+  rows: SportsbookRow[];
   maxCols?: number;
 }) {
   const axis = unionAxis(
@@ -43,21 +43,14 @@ export function CustomMatrix({
               }
               return (
                 <td key={c.key} className="px-2 py-2 text-center">
-                  <div
-                    className="mx-auto max-w-[8rem] truncate font-mono tabular-nums"
-                    title={String(cell.value)}
-                  >
-                    {String(cell.value)}
+                  <div className="font-mono tabular-nums">
+                    {cell.status === "unavailable"
+                      ? "—"
+                      : formatAmerican(cell.price)}
                   </div>
-                  {cell.delta !== null && (
-                    <div className="text-xs">
-                      <Delta
-                        value={cell.delta}
-                        digits={CUSTOM_DELTA_DIGITS}
-                        trimZeros
-                      />
-                    </div>
-                  )}
+                  <div className="text-xs">
+                    <OddsDelta pp={cell.probDeltaPP} />
+                  </div>
                 </td>
               );
             })}

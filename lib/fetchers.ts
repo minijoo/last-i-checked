@@ -3,14 +3,18 @@
 
 import { fetchDaySummaries, fetchTimeline } from "./actions/weather";
 import { fetchStockQuotes } from "./actions/stocks";
-import { jitterValue, nowForCheck } from "./devtime";
+import { jitterCustom, jitterOdds, jitterValue, nowForCheck } from "./devtime";
 import { calKeyToIso, todayCalendarKeys } from "./format";
+import { makeTrackKey } from "./sportsbook";
+import { chargedEventOdds } from "./sportsbookCredits";
 import { store } from "./store";
 import type {
   CustomScrapeResult,
   DailyWeather,
   LocationRef,
+  SportsbookCheck,
   TrackedCustom,
+  TrackedSportsbook,
   WeatherCheck,
 } from "./types";
 
@@ -30,8 +34,8 @@ function toRow(
     tempDay: jitterValue(d.tempDay),
     tempNight: jitterValue(d.tempNight),
     tempUnit: "F",
-    rainAmt: d.rainAmt,
-    windSpeed: d.windSpeed,
+    rainAmt: jitterValue(d.rainAmt),
+    windSpeed: jitterValue(d.windSpeed),
     source: d.source,
   };
 }
@@ -169,6 +173,11 @@ export async function runCustomFetch(tracked: TrackedCustom): Promise<FetchOutco
     };
   }
 
+  const value =
+    result.ok && typeof result.value === "number"
+      ? jitterCustom(result.value)
+      : result.value;
+
   await store.appendCustomCheck({
     checkedAt: now,
     name: tracked.name,
@@ -176,7 +185,7 @@ export async function runCustomFetch(tracked: TrackedCustom): Promise<FetchOutco
     selector: tracked.selector,
     valueType: tracked.valueType,
     rawText: result.rawText,
-    value: result.value,
+    value,
     status: result.ok ? "ok" : "error",
     errorMessage: result.ok ? undefined : result.error,
   });
@@ -184,5 +193,89 @@ export async function runCustomFetch(tracked: TrackedCustom): Promise<FetchOutco
   return {
     added: 1,
     errors: result.ok ? [] : [result.error ?? "Fetch failed."],
+  };
+}
+
+/**
+ * Refreshes one home-page section: all tracked outcomes that share a
+ * (sportKey, eventId, region, marketKey). One GET-event-odds call (1 credit)
+ * covers every book and outcome in the section. Outcomes absent from the
+ * response are still recorded, as `unavailable` rows.
+ */
+export async function runSportsbookFetch(
+  rows: TrackedSportsbook[],
+): Promise<FetchOutcome> {
+  if (rows.length === 0) return { added: 0, errors: [] };
+  const { sportKey, eventId, region, marketKey } = rows[0];
+
+  // The app stays out of live betting: once the event starts, freeze.
+  if (Date.now() >= rows[0].commenceTime) {
+    return { added: 0, errors: ["Event has started — this section is closed."] };
+  }
+
+  const now = nowForCheck();
+  const res = await chargedEventOdds(sportKey, eventId, region, marketKey);
+
+  if (!res.ok) {
+    if (res.kind === "empty") {
+      await store.appendSportsbookChecks(
+        rows.map((r) => unavailableCheck(r, now)),
+      );
+      return { added: rows.length, errors: [res.error] };
+    }
+    return { added: 0, errors: [res.error] };
+  }
+
+  const checks: Array<Omit<SportsbookCheck, "id">> = rows.map((r) => {
+    const bm = res.odds.bookmakers.find((b) => b.key === r.bookmakerKey);
+    const mk = bm?.markets.find((m) => m.key === marketKey);
+    const oc = mk?.outcomes.find(
+      (o) =>
+        o.name === r.outcomeName &&
+        (o.description ?? null) === r.outcomeDescription,
+    );
+    if (!bm || !mk || !oc) return unavailableCheck(r, now);
+    const lastUpdate =
+      Date.parse(bm.last_update ?? mk.last_update ?? "") || now;
+    return {
+      checkedAt: now,
+      trackKey: makeTrackKey(r),
+      price: jitterOdds(oc.price),
+      point: oc.point != null ? jitterValue(oc.point) : null,
+      oddsFormat: "american",
+      lastUpdate,
+      rawOutcome: oc,
+      status: "ok",
+    };
+  });
+
+  await store.appendSportsbookChecks(checks);
+  if (res.remaining) {
+    await store.setSetting("oddsRequestsRemaining", res.remaining);
+  }
+
+  const missing = checks.filter((c) => c.status === "unavailable").length;
+  return {
+    added: checks.length,
+    errors:
+      missing > 0
+        ? [`${missing} outcome${missing === 1 ? "" : "s"} not offered right now.`]
+        : [],
+  };
+}
+
+function unavailableCheck(
+  r: TrackedSportsbook,
+  now: number,
+): Omit<SportsbookCheck, "id"> {
+  return {
+    checkedAt: now,
+    trackKey: makeTrackKey(r),
+    price: null,
+    point: null,
+    oddsFormat: "american",
+    lastUpdate: now,
+    rawOutcome: null,
+    status: "unavailable",
   };
 }

@@ -3,22 +3,43 @@
 import { useRef, useState } from "react";
 import { DevPanel } from "@/components/DevPanel";
 import { LocationSearch } from "@/components/LocationSearch";
-import { Button, Card, SectionTitle } from "@/components/ui";
-import { useHomeLocation } from "@/lib/hooks";
+import { Button, Card, Input, SectionTitle } from "@/components/ui";
+import {
+  useHomeLocation,
+  useSportsbookAccess,
+  useTempUnit,
+} from "@/lib/hooks";
+import { setUserOddsKey } from "@/lib/sportsbookCredits";
 import { store } from "@/lib/store";
 import type { BackupBlob } from "@/lib/types";
 
 export default function SettingsPage() {
-  const home = useHomeLocation();
-
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
 
-      <section className="flex flex-col gap-2">
-        <SectionTitle>Home location</SectionTitle>
-        <Card>
-          <p className="mb-2 text-sm">
+      <WeatherSection />
+
+      <SportsbookSection />
+
+      <BackupSection />
+
+      {process.env.NODE_ENV === "development" && <DevPanel />}
+    </div>
+  );
+}
+
+function WeatherSection() {
+  const home = useHomeLocation();
+  const tempUnit = useTempUnit();
+
+  return (
+    <section className="flex flex-col gap-2">
+      <SectionTitle>Weather</SectionTitle>
+      <Card className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted">Home location</span>
+          <p className="text-sm">
             {home === undefined
               ? "Loading…"
               : home
@@ -34,18 +55,130 @@ export default function SettingsPage() {
           {home && (
             <button
               onClick={() => store.setSetting("homeLocation", null)}
-              className="mt-2 text-xs text-muted hover:text-down"
+              className="self-start text-xs text-muted hover:text-down"
             >
               clear
             </button>
           )}
-        </Card>
-      </section>
+        </div>
 
-      <BackupSection />
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted">Temperature unit</span>
+          <div className="flex gap-1">
+            {(["F", "C"] as const).map((u) => (
+              <Button
+                key={u}
+                variant={tempUnit === u ? "solid" : "outline"}
+                onClick={() => store.setSetting("tempUnit", u)}
+              >
+                °{u}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-muted">
+            Display only — forecasts are always fetched and stored in °F. In °C,
+            temperature values and deltas show to one decimal place, and the
+            difference is calculated after converting.
+          </p>
+        </div>
+      </Card>
+    </section>
+  );
+}
 
-      {process.env.NODE_ENV === "development" && <DevPanel />}
-    </div>
+function SportsbookSection() {
+  const access = useSportsbookAccess();
+  const [value, setValue] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function save() {
+    await setUserOddsKey(value.trim());
+    setValue("");
+    setMsg(value.trim() ? "Saved. Your key is now used for all Odds API calls." : "Key cleared.");
+  }
+
+  async function clearKey() {
+    await setUserOddsKey("");
+    setValue("");
+    setMsg("Key cleared. Back to trial credits.");
+  }
+
+  return (
+    <section className="flex flex-col gap-2">
+      <SectionTitle>Sportsbook</SectionTitle>
+      <Card className="flex flex-col gap-3">
+        <p className="text-sm text-muted">
+          The Sportsbook page uses{" "}
+          <a
+            href="https://the-odds-api.com/#get-access"
+            target="_blank"
+            rel="noreferrer"
+            className="underline hover:text-foreground"
+          >
+            The Odds API
+          </a>
+          . Each time you load or refresh a line costs one credit. This app gives
+          you {access?.trialLimit ?? 7} free trial credits per calendar month
+          against a shared key; add your own key for unlimited use.
+        </p>
+
+        {access && (
+          <p className="text-sm">
+            {access.userKey ? (
+              <>
+                Using <span className="font-medium">your own key</span> (ending
+                &hellip;{access.userKey.slice(-4)}). Trial limit no longer applies.
+              </>
+            ) : (
+              <>
+                Trial credits used this month:{" "}
+                <span className="font-medium">
+                  {access.trialUsed} / {access.trialLimit}
+                </span>
+                . This count resets on the 1st of each month, or if you clear this
+                browser&apos;s data.
+              </>
+            )}
+          </p>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-muted">Your Odds API key</label>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="paste key here"
+              spellCheck={false}
+              className="w-72 font-mono"
+            />
+            <Button variant="outline" onClick={save} disabled={!value.trim()}>
+              Save
+            </Button>
+            {access?.userKey && (
+              <Button variant="ghost" onClick={clearKey}>
+                Remove key
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted">
+            Get one free at{" "}
+            <a
+              href="https://the-odds-api.com/#get-access"
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-foreground"
+            >
+              the-odds-api.com/#get-access
+            </a>{" "}
+            — pick the free tier (no card, 500 credits/month). Stored only in this
+            browser.
+          </p>
+        </div>
+
+        {msg && <p className="text-xs text-up">{msg}</p>}
+      </Card>
+    </section>
   );
 }
 

@@ -29,18 +29,6 @@ export function makeTrackKey(t: {
   ].join("|");
 }
 
-/** American odds → implied probability (with vig). Continuous and monotonic,
- *  so differences of these are meaningful where raw American-odds differences
- *  are not (the ±100 discontinuity). */
-export function impliedProb(price: number): number {
-  return price < 0 ? -price / (-price + 100) : 100 / (price + 100);
-}
-
-/** Implied-probability change in percentage points, prev → curr. */
-export function probDeltaPP(prev: number, curr: number): number {
-  return round((impliedProb(curr) - impliedProb(prev)) * 100);
-}
-
 /** "+150" / "-110" / "—" for a missing price. */
 export function formatAmerican(price: number | null): string {
   if (price === null || !Number.isFinite(price)) return "—";
@@ -70,18 +58,19 @@ export interface OddsDatum {
 
 export interface OddsColumn {
   key: string; // bucket id, "2026-09-06-PM"
-  label: string; // "Sep 6 PM"
+  label: string; // "9/6 PM"
   at: number; // checkedAt of the representative (last) check
   price: number | null;
   point: number | null;
   status: "ok" | "unavailable";
-  probDeltaPP: number | null; // implied-prob change vs the next-older bucket, in pp
-  pointDelta: number | null; // line change vs the next-older bucket
+  priceDelta: number | null; // American-odds difference vs the next-older bucket
+  pointDelta: number | null; // line difference vs the next-older bucket
 }
 
 /** Group checks into half-day buckets keeping the last check per bucket, then
- *  compute each bucket's delta against the next-older populated bucket. Newest
- *  column first. Mirrors toColumns() in lib/buckets.ts. */
+ *  compute each bucket's line and price deltas against the next-older populated
+ *  bucket — separately, since an outcome with a `point` moves on both axes.
+ *  Newest column first. Mirrors toColumns() in lib/buckets.ts. */
 export function toOddsColumns(
   data: OddsDatum[],
   limit = Number.POSITIVE_INFINITY,
@@ -95,11 +84,11 @@ export function toOddsColumns(
   const cols: OddsColumn[] = keys.map((key, i) => {
     const d = byBucket.get(key)!;
     const prev = i > 0 ? byBucket.get(keys[i - 1])! : null;
-    const priceMoved =
+    const priceDelta =
       d.price !== null && prev != null && prev.price !== null
-        ? probDeltaPP(prev.price, d.price)
+        ? round(d.price - prev.price)
         : null;
-    const lineMoved =
+    const pointDelta =
       d.point !== null && prev != null && prev.point !== null
         ? round(d.point - prev.point)
         : null;
@@ -110,8 +99,8 @@ export function toOddsColumns(
       price: d.price,
       point: d.point,
       status: d.status,
-      probDeltaPP: priceMoved,
-      pointDelta: lineMoved,
+      priceDelta,
+      pointDelta,
     };
   });
   cols.reverse(); // newest first

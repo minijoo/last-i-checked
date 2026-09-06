@@ -3,7 +3,7 @@
 > **Status: implemented.** `lib/actions/sportsbook.ts` (Odds API proxy),
 > `lib/sportsbook.ts` + `lib/sportsbook/markets.ts` + `lib/fuzzy.ts` +
 > `lib/sportsbookCredits.ts` (trial credits / BYO key),
-> `components/{Combobox,AddSportsbookForm,SportsbookMatrix,SportsbookColumns,OddsDelta}.tsx`,
+> `components/{Combobox,AddSportsbookForm,SportsbookMatrix,SportsbookColumns}.tsx`,
 > `app/sportsbook/{page,[id]/page}.tsx`, a Sportsbook section in
 > `app/settings/page.tsx`. Stores `trackedSportsbook` / `sportsbookChecks` in
 > `lib/db.ts`. Odds-math unit tests in `lib/sportsbook.test.ts`. This doc is the
@@ -181,6 +181,10 @@ establishes the first delta.
 
 ## Outcome rendering
 
+This is the **add-flow picker** (the checkbox list). Once tracked, the home table
+and detail page split `point` and `price` into separate lanes — see *Tracked value
+and deltas*.
+
 The `Outcome` shape is constant across every market, so one row renderer serves all:
 
 ```
@@ -206,31 +210,29 @@ The `Outcome` shape is constant across every market, so one row renderer serves 
 
 The value that changes between visits is `{ price, point?, lastUpdate }` —
 `lastUpdate` from `bookmaker.last_update`, falling back to `market.last_update`.
-Because re-fetched outcomes have the same shape as prior fetches, both numeric fields
-are diffable.
 
-- **`point` delta** is linear and safe. Show `before → after` and a signed numeric
-  delta with an arrow.
-- **`price` delta (American odds)** must **not** be a raw subtraction. The American
-  scale has a ~200-wide dead zone across ±100 and is non-linear, so `-110 → +105`
-  reads as a 215-point swing for what is really a ~3.6pp move. Instead:
-  - Convert both prices to implied probability and diff those:
+**An outcome with a `point` moves on two independent axes, so it is shown as two
+lanes** (like the weather table's AM/PM split), each with its own arithmetic delta:
 
-    ```
-    favorite (price < 0):  P = -price / (-price + 100)
-    underdog (price > 0):  P =  100  / ( price + 100)
-    ```
+| lane | value | delta | digits |
+|---|---|---|---|
+| **Line** | the `point` (`3.5`, `-3.5`, `45.5`, `o1.5`) | `point − prevPoint` | 1 |
+| **Odds** | the American `price` (`-110`, `+900`) | `price − prevPrice` | 0 |
 
-  - Arrow from `sign(P_now − P_prev)`; magnitude as "moved +2.1 pts" from the
-    probability delta. Raw (with-vig) probability is fine for a movement signal — no
-    need to de-vig.
-  - **Always also show the literal `-110 → +105`** in the user's odds format
-    (default American) — bettors read American odds natively and want the real
-    numbers; the probability delta is the comparable summary, not a replacement.
-  - Green/red (Up/Down) mapping of the arrow is a UI decision — TBD against mockups.
-- **When `point` moved**, lead with the line move (`o1.5 → o2.5`) and treat the
-  `price` delta as secondary context. A standalone price delta across a line change
-  is meaningless — the market repriced around a new number.
+Moneyline (`h2h`) and futures (`outrights`) outcomes have no `point`, so they show a
+single **Odds** lane.
+
+- Each lane's delta is a plain signed difference rendered by the shared `<Delta>`
+  component (arrow + number, coloured by sign). `toOddsColumns` produces
+  `pointDelta` and `priceDelta` per half-day bucket.
+- **The American-odds `priceDelta` is a raw subtraction.** Its *sign* is always
+  correct (a higher American number is monotonically better for the backer across
+  the whole range), so the arrow is meaningful; its *magnitude* is non-linear and
+  blows up across the ±100 boundary (`-105 → +105` reads as `+210`). That is an
+  accepted trade-off — for spreads/totals/props, where the line is the primary
+  number, the price hovers near `-110` and the delta stays small; the earlier
+  implied-probability treatment was dropped in favour of showing both raw values
+  with their own deltas.
 - **Delta baseline / bucketing:** reuse the model in `plan.md` → *Delta baseline*.
   Odds move meaningfully within a day (like weather forecasts for a fixed date), so
   use the **half-day bucket** (split at local noon), not the stock-style calendar-day
@@ -329,10 +331,12 @@ interface SportsbookCheck {     // append-only; one row per fetch per pinned out
 - **Add flow** — the drill-down above (sport → event → market → region → multi-select
   outcomes).
 - **Detail page** (`/sportsbook/[id]`, mirroring `/stocks/[symbol]` and
-  `/custom/[name]`) — graph of every raw check (plot `price` as implied probability so
-  the line is continuous; `point` on a secondary axis when the market has one), a
-  half-day column strip, and a full reverse-chronological history table including
-  `unavailable` rows.
+  `/custom/[name]`) — a graph of every raw check: a dual-axis **Line & odds** chart
+  when the market has a `point` (line on the left axis, American odds on the right),
+  otherwise a single **Odds** line. Then the half-day strip — a **Line** strip and an
+  **Odds** strip side by side when there's a `point`, else just **Odds** — and a full
+  reverse-chronological history table (`When · Line · Odds`, `unavailable` rows
+  shown).
 - No mockups yet (`docs/mockups/` currently has Stocks + Weather only).
 
 ## Sports & markets
@@ -404,8 +408,10 @@ known-bad market greys out in the picker instead of being re-fetched; clear on a
   regions multiply credit cost.
 - **Stay out of live betting** — `closed` at `commenceTime`, Fetch disabled, value
   frozen at last pre-game state.
-- **Deltas:** `point` linear; `price` via implied probability, never a raw American
-  subtraction; literal `before → after` always shown.
+- **Deltas:** an outcome with a `point` is shown as two lanes — **Line** (`point`,
+  1 dp) and **Odds** (American `price`, 0 dp) — each with its own plain arithmetic
+  delta. Price-only markets (`h2h`, `outrights`) show just the Odds lane. The earlier
+  implied-probability treatment was removed.
 - **One Fetch button per `(event, market, region)` section** = one 1-credit call
   refreshing every check in it.
 - **Half-day bucket** for the delta baseline (odds move intraday, like weather).
@@ -476,5 +482,6 @@ gets a small **trial allowance**; past it, the user supplies their own key.
 - Surfacing `x-requests-remaining` / a monthly-credit gauge in the UI.
 - Bucket granularity: half-day vs. "most recent check ≥ N hours old" — confirm
   against mockups, same open question as weather.
-- Detail-page graph: is implied-probability-over-time legible enough as the primary
-  series, or should raw American odds be shown with a non-linear axis?
+- The Odds line/axis plots raw American odds, which has the ±100 discontinuity. Fine
+  for spreads/totals/props (price stays near `-110`); revisit if a pick'em moneyline
+  crossing `-105 → +105` on a graph looks wrong.

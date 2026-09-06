@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useMemo, useState } from "react";
-import { CheckGraph } from "@/components/CheckGraph";
+import { CheckGraph, DualAxisGraph } from "@/components/CheckGraph";
 import { FetchBar } from "@/components/FetchBar";
 import { SportsbookColumns } from "@/components/SportsbookColumns";
 import { Card, SectionTitle } from "@/components/ui";
@@ -12,7 +12,6 @@ import { useSportsbookChecks, useTrackedSportsbook } from "@/lib/hooks";
 import {
   formatAmerican,
   formatPoint,
-  impliedProb,
   makeTrackKey,
   toOddsColumns,
 } from "@/lib/sportsbook";
@@ -33,12 +32,30 @@ export default function SportsbookDetailPage({
   const [now] = useState(() => Date.now());
   const closed = item ? now >= item.commenceTime : false;
 
-  const points = useMemo(
-    () =>
-      (checks ?? [])
-        .filter((c) => c.status === "ok" && c.price !== null)
-        .map((c) => ({ t: c.checkedAt, v: impliedProb(c.price as number) * 100 })),
+  const okChecks = useMemo(
+    () => (checks ?? []).filter((c) => c.status === "ok" && c.price !== null),
     [checks],
+  );
+  const hasPoint = useMemo(
+    () => (checks ?? []).some((c) => c.point !== null),
+    [checks],
+  );
+
+  // Price-only graph (h2h / futures), and a dual-axis Line+Odds graph otherwise.
+  const pricePoints = useMemo(
+    () => okChecks.map((c) => ({ t: c.checkedAt, v: c.price as number })),
+    [okChecks],
+  );
+  const dualPoints = useMemo(
+    () =>
+      okChecks
+        .filter((c) => c.point !== null)
+        .map((c) => ({
+          t: c.checkedAt,
+          left: c.point as number,
+          right: c.price as number,
+        })),
+    [okChecks],
   );
 
   const columns = useMemo(
@@ -121,18 +138,46 @@ export default function SportsbookDetailPage({
 
       {item && checks !== undefined && (
         <>
-          {points.length >= 2 && (
-            <section className="flex flex-col gap-2">
-              <SectionTitle>Implied probability</SectionTitle>
-              <Card>
-                <CheckGraph points={points} unit="%" digits={1} />
-              </Card>
-            </section>
-          )}
+          {hasPoint
+            ? dualPoints.length >= 2 && (
+                <section className="flex flex-col gap-2">
+                  <SectionTitle>Line &amp; odds</SectionTitle>
+                  <Card>
+                    <DualAxisGraph
+                      points={dualPoints}
+                      leftLabel="Line"
+                      rightLabel="Odds"
+                      leftDigits={1}
+                      rightDigits={0}
+                    />
+                  </Card>
+                </section>
+              )
+            : pricePoints.length >= 2 && (
+                <section className="flex flex-col gap-2">
+                  <SectionTitle>Odds</SectionTitle>
+                  <Card>
+                    <CheckGraph points={pricePoints} digits={0} />
+                  </Card>
+                </section>
+              )}
 
           <section className="flex flex-col gap-2">
             <SectionTitle>By half-day, latest</SectionTitle>
-            <SportsbookColumns columns={columns} />
+            {hasPoint ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-muted">Line</span>
+                  <SportsbookColumns columns={columns} metric="line" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-muted">Odds</span>
+                  <SportsbookColumns columns={columns} metric="price" />
+                </div>
+              </div>
+            ) : (
+              <SportsbookColumns columns={columns} metric="price" />
+            )}
           </section>
 
           <section className="flex flex-col gap-2">
@@ -142,9 +187,8 @@ export default function SportsbookDetailPage({
                 <thead>
                   <tr className="text-left text-xs text-muted">
                     <th className="py-1 pr-4 font-normal">When</th>
-                    <th className="py-1 pr-4 font-normal">Odds</th>
                     <th className="py-1 pr-4 font-normal">Line</th>
-                    <th className="py-1 font-normal">Implied</th>
+                    <th className="py-1 font-normal">Odds</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -153,22 +197,17 @@ export default function SportsbookDetailPage({
                       <td className="whitespace-nowrap py-1 pr-4 text-muted">
                         {formatStamp(c.checkedAt)}
                       </td>
+                      <td className="whitespace-nowrap py-1 pr-4 font-mono tabular-nums text-muted">
+                        {c.point != null ? formatPoint(c.point) : "—"}
+                      </td>
                       <td
-                        className={`whitespace-nowrap py-1 pr-4 font-mono tabular-nums ${
+                        className={`whitespace-nowrap py-1 font-mono tabular-nums ${
                           c.status === "unavailable" ? "text-muted" : ""
                         }`}
                       >
                         {c.status === "unavailable"
                           ? "n/a"
                           : formatAmerican(c.price)}
-                      </td>
-                      <td className="whitespace-nowrap py-1 pr-4 font-mono tabular-nums text-muted">
-                        {c.point != null ? formatPoint(c.point) : "—"}
-                      </td>
-                      <td className="whitespace-nowrap py-1 font-mono tabular-nums text-muted">
-                        {c.status === "unavailable" || c.price === null
-                          ? "—"
-                          : `${(impliedProb(c.price) * 100).toFixed(1)}%`}
                       </td>
                     </tr>
                   ))}

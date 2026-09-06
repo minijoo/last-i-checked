@@ -1,17 +1,20 @@
 import { formatClock, formatStamp } from "@/lib/format";
 import { formatAmerican, formatPoint, type OddsColumn } from "@/lib/sportsbook";
-import { LineMove, OddsDelta } from "./OddsDelta";
+import { Delta } from "./Delta";
 
 /**
- * Columnar odds + delta view for the detail page. Newest half-day bucket on the
- * left. The odds are shown literally (American); the delta below is the
- * implied-probability move; a line move, when there is one, is spelled out.
+ * Detail-page half-day strip for one sportsbook metric. `metric="line"` shows
+ * the `point` value + its delta; `metric="price"` shows the American odds +
+ * their delta. Newest bucket on the left. Deltas are plain arithmetic
+ * differences (line in points, price in American-odds units).
  */
 export function SportsbookColumns({
   columns,
+  metric,
   emptyLabel = "No checks yet.",
 }: {
   columns: OddsColumn[];
+  metric: "line" | "price";
   emptyLabel?: string;
 }) {
   if (columns.length === 0) {
@@ -20,13 +23,27 @@ export function SportsbookColumns({
   return (
     <div className="flex gap-2 overflow-x-auto">
       {columns.map((c, i) => {
+        const raw = metric === "line" ? c.point : c.price;
+        const delta = metric === "line" ? c.pointDelta : c.priceDelta;
+        const digits = metric === "line" ? 1 : 0;
+        const shown =
+          c.status === "unavailable" || raw === null
+            ? "—"
+            : metric === "line"
+              ? formatPoint(raw)
+              : formatAmerican(raw);
         const prev = columns[i + 1];
+        const prevRaw = prev
+          ? metric === "line"
+            ? prev.point
+            : prev.price
+          : null;
         const title =
-          c.probDeltaPP === null
+          delta === null
             ? `First recorded check, ${formatStamp(c.at)}`
-            : `${formatAmerican(c.price)} on ${c.label} vs ${
-                prev ? formatAmerican(prev.price) : "?"
-              } on ${prev?.label ?? "?"}`;
+            : `${shown} on ${c.label} vs ${prevRaw ?? "?"} on ${
+                prev?.label ?? "?"
+              }`;
         return (
           <div
             key={c.key}
@@ -41,22 +58,10 @@ export function SportsbookColumns({
             <div className="text-[0.65rem] text-muted opacity-80">
               {formatClock(c.at)}
             </div>
-            <div className="mt-1 font-mono text-lg tabular-nums">
-              {c.status === "unavailable" ? "—" : formatAmerican(c.price)}
-            </div>
-            {c.point !== null && c.status === "ok" && (
-              <div className="text-xs tabular-nums text-muted">
-                {formatPoint(c.point)}
-              </div>
-            )}
+            <div className="mt-1 font-mono text-lg tabular-nums">{shown}</div>
             <div className="mt-0.5 text-xs">
-              <OddsDelta pp={c.probDeltaPP} />
+              <Delta value={delta} digits={digits} />
             </div>
-            <LineMove
-              from={prev?.point ?? null}
-              to={c.point}
-              className="mt-0.5 block text-[0.7rem]"
-            />
           </div>
         );
       })}

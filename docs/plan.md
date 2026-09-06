@@ -220,10 +220,10 @@ the cliff feels wrong in practice.
       outcomes into `(event, market, region)` sections, each with one Fetch button
       that refreshes every check under it in a single 1-credit call. Half-day buckets
       for the delta baseline (odds move intraday, like weather forecasts).
-    - `price` deltas are shown as an implied-probability change, not a raw
-      American-odds subtraction (the ±100 discontinuity makes raw deltas
-      meaningless); the literal `-110 → +105` is always shown too. `point` (line)
-      deltas are plain numeric.
+    - An outcome with a `point` (spread / total / prop) is shown as **two lanes** —
+      **Line** (the `point`, 1 dp) and **Odds** (American `price`, 0 dp) — each with
+      its own plain arithmetic delta, like the weather table's AM/PM split.
+      Moneyline / futures outcomes show a single Odds lane.
     - A check goes `closed` once its event's `commence_time` passes — Fetch disabled,
       value frozen. The app stays out of live/in-play betting.
     - Detail page `/sportsbook/[id]`, mirroring `/stocks/[symbol]` and
@@ -463,8 +463,8 @@ and the text `"$254.32"` next to the user's description, and returns `2`.
   endpoints; pinning and refresh use the 1-credit `GET event odds`. The `Outcome`
   object is the stored unit (hard dependency on the Odds API schema, accepted). Not a
   sportsbook wrapper — no discovery/browse UI. Stays out of live betting (checks
-  freeze at `commence_time`). `price` deltas via implied probability, not raw
-  American-odds subtraction. Each browser gets 7 trial credits/month against the
+  freeze at `commence_time`). Outcomes with a `point` show two lanes (Line + Odds),
+  each with its own arithmetic delta. Each browser gets 7 trial credits/month against the
   shared `ODDS_API_KEY` (tracked in `Setting`, resets monthly / on data-clear);
   past that the user pastes their own key in Settings → Sportsbook.
 

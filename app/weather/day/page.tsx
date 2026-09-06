@@ -8,10 +8,16 @@ import { DeltaColumns } from "@/components/DeltaColumns";
 import { FetchBar } from "@/components/FetchBar";
 import { Card, SectionTitle } from "@/components/ui";
 import { runWeatherFetch } from "@/lib/fetchers";
-import { mmToInches, parseCalendarKey } from "@/lib/format";
-import { useWeatherChecks } from "@/lib/hooks";
+import { fToC, formatStamp, mmToInches, parseCalendarKey } from "@/lib/format";
+import { useTempUnit, useWeatherChecks } from "@/lib/hooks";
 import type { WeatherCheck } from "@/lib/types";
-import { fmtRainInches, fmtTemp, fmtWindMph, numColumnsFor } from "@/lib/weather-view";
+import {
+  fmtRainInches,
+  fmtTemp,
+  fmtWindMph,
+  numColumnsFor,
+  type TempUnit,
+} from "@/lib/weather-view";
 
 export default function WeatherDayPage() {
   return (
@@ -26,6 +32,7 @@ function DayView() {
   const location = sp.get("loc") ?? "";
   const calKey = sp.get("date") ?? "";
   const checks = useWeatherChecks(location, calKey);
+  const unit = useTempUnit();
 
   const dateLabel = calKey
     ? parseCalendarKey(calKey).toLocaleDateString(undefined, {
@@ -40,7 +47,6 @@ function DayView() {
   }
 
   const estimated = (checks ?? []).some((c) => c.source === "summary");
-  const unit = checks?.[0]?.tempUnit ?? "F";
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,40 +81,54 @@ function DayView() {
         <>
           <TempMetric checks={checks} unit={unit} />
           <RainWindMetric checks={checks} />
+          <HistoryTable checks={checks} unit={unit} />
         </>
       )}
     </div>
   );
 }
 
-function TempMetric({ checks, unit }: { checks: WeatherCheck[]; unit: string }) {
+function TempMetric({
+  checks,
+  unit,
+}: {
+  checks: WeatherCheck[];
+  unit: TempUnit;
+}) {
+  const conv = unit === "C" ? fToC : (v: number) => v;
+  const digits = unit === "C" ? 1 : 0;
   return (
     <section className="flex flex-col gap-3">
       <SectionTitle>Temperature</SectionTitle>
       <Card>
         <DualCheckGraph
-          points={checks.map((c) => ({ t: c.checkedAt, a: c.tempDay, b: c.tempNight }))}
+          points={checks.map((c) => ({
+            t: c.checkedAt,
+            a: conv(c.tempDay),
+            b: conv(c.tempNight),
+          }))}
           aLabel="Day"
           bLabel="Night"
           unit={`°${unit}`}
-          digits={0}
+          digits={digits}
         />
       </Card>
+      <SectionTitle>By half-day, latest</SectionTitle>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted">Day</span>
           <DeltaColumns
-            columns={numColumnsFor(checks, "day")}
+            columns={numColumnsFor(checks, "day", unit)}
             format={fmtTemp(unit)}
-            digits={0}
+            digits={digits}
           />
         </div>
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted">Night</span>
           <DeltaColumns
-            columns={numColumnsFor(checks, "night")}
+            columns={numColumnsFor(checks, "night", unit)}
             format={fmtTemp(unit)}
-            digits={0}
+            digits={digits}
           />
         </div>
       </div>
@@ -135,6 +155,7 @@ function RainWindMetric({ checks }: { checks: WeatherCheck[] }) {
           rightDigits={0}
         />
       </Card>
+      <SectionTitle>By half-day, latest</SectionTitle>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted">Rain</span>
@@ -153,6 +174,58 @@ function RainWindMetric({ checks }: { checks: WeatherCheck[] }) {
           />
         </div>
       </div>
+    </section>
+  );
+}
+
+function HistoryTable({
+  checks,
+  unit,
+}: {
+  checks: WeatherCheck[];
+  unit: TempUnit;
+}) {
+  const conv = unit === "C" ? fToC : (v: number) => v;
+  const t = (v: number) => fmtTemp(unit)(conv(v));
+  return (
+    <section className="flex flex-col gap-2">
+      <SectionTitle>Full history</SectionTitle>
+      <Card className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-muted">
+              <th className="py-1 pr-4 font-normal">When</th>
+              <th className="py-1 pr-4 font-normal">Day</th>
+              <th className="py-1 pr-4 font-normal">Night</th>
+              <th className="py-1 pr-4 font-normal">Rain</th>
+              <th className="py-1 font-normal">Wind</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...checks]
+              .sort((a, b) => b.checkedAt - a.checkedAt)
+              .map((c) => (
+              <tr key={c.id} className="border-t border-border">
+                <td className="whitespace-nowrap py-1 pr-4 text-muted">
+                  {formatStamp(c.checkedAt)}
+                </td>
+                <td className="whitespace-nowrap py-1 pr-4 font-mono tabular-nums">
+                  {t(c.tempDay)}
+                </td>
+                <td className="whitespace-nowrap py-1 pr-4 font-mono tabular-nums">
+                  {t(c.tempNight)}
+                </td>
+                <td className="whitespace-nowrap py-1 pr-4 font-mono tabular-nums">
+                  {fmtRainInches(mmToInches(c.rainAmt))}
+                </td>
+                <td className="whitespace-nowrap py-1 font-mono tabular-nums">
+                  {fmtWindMph(c.windSpeed)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
     </section>
   );
 }

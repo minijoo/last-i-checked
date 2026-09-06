@@ -1,5 +1,5 @@
 import type { NumColumn } from "@/lib/buckets";
-import { formatStamp } from "@/lib/format";
+import { formatClock, formatStamp } from "@/lib/format";
 import { Delta } from "./Delta";
 
 /**
@@ -42,6 +42,9 @@ export function DeltaColumns({
             }`}
           >
             <div className="text-xs text-muted">{c.label}</div>
+            <div className="text-[0.65rem] text-muted opacity-80">
+              {formatClock(c.at)}
+            </div>
             <div className="mt-1 font-mono text-lg tabular-nums">
               {format(c.value)}
             </div>

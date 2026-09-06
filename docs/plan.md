@@ -2,8 +2,8 @@
 
 ## Summary
 
-Show history of your stock prices and weather forecasts compared to when you last
-checked them.
+Show history of your stock prices, weather forecasts, and sportsbook odds compared to
+when you last checked them.
 
 Problem: Reading data when checking things like stocks, weather, and sports standings
 resets our brain to a new state because the data is absolute. Sometimes our brain caches
@@ -35,14 +35,20 @@ meaning to those numbers.
 - `WeatherCheck` is similar but tracks a few more values: check time, location name,
   lat/long, forecast date (one row per calendar date), day temperature, night
   temperature, and rain amount for that date.
+- `SportsbookCheck` tracks one sportsbook odds `Outcome` (point spread, moneyline,
+  total, player prop, or a futures/award price) over time, matched to its
+  `TrackedSportsbook` registry row by a `trackKey` value tuple. Its own page; full
+  design in `docs/sportsbook.md`.
 - The `StockCheck` / `WeatherCheck` stores are **append-only** in normal use: a fetch
   only inserts rows. Pruning old history is a later concern (see Open Questions).
 - What the user is *currently tracking* lives in separate **registry** stores
-  (`TrackedStock`, `TrackedForecast`) plus a `Setting` store for the home location.
+  (`TrackedStock`, `TrackedForecast`, `TrackedCustom`, `TrackedSportsbook`) plus a
+  `Setting` store for the home location.
   Adding an item writes a registry row; "untracking" deletes only that registry row —
   the check history stays, so re-adding the same symbol or location-date later brings
   its past checks back into the graph. History is matched to an item by value
-  (`symbol`, or `(location, dateStr)` where `dateStr` is `YYYYMMDD`), not by an id.
+  (`symbol`, `(location, dateStr)` where `dateStr` is `YYYYMMDD`, custom `name`, or
+  sportsbook `trackKey`), not by an id.
 - These two objects exist independently and are not related. They live on their own,
   separate pages.
 
@@ -54,28 +60,36 @@ immediately previous one dilutes the delta to noise (`+0.02 since 12 seconds ago
 
 **Bucket the history, then compare bucket-to-bucket.**
 
-- A **bucket** is one distinct calendar day for stocks, or one distinct half-day
-  (split at local noon) for weather. Weather forecasts for a fixed future date genuinely
-  move within a day as that date approaches, so they get the finer bucket; stock price at
-  this app's altitude does not.
+- A **bucket** is one distinct calendar day for stocks and custom checks, or one
+  distinct half-day (split at local noon) for weather and sportsbook. Weather
+  forecasts for a fixed future date, and sportsbook lines, both genuinely move within
+  a day, so they get the finer bucket; stock price at this app's altitude does not.
 - A bucket's **value** is its *last* check ("where it stood when I left off"). Re-fetching
   within the current bucket updates that value in place — it does not add a bucket — so
   mashing Fetch cannot move the deltas.
 - A bucket's **delta** is its value minus the next-older populated bucket's value.
 
-**Presentation.** Show the recent buckets as a row of columns, newest on the left, each
-column headed by its date. The delta sits under the value:
+**Presentation.** Show the recent buckets as a row of columns, newest on the left.
+The column header is three rows: a **relative-day** label (`today`, `2 days ago`) over
+an **absolute date** (`9/1`, or `9/4 PM` for a half-day bucket) over the **time of the
+latest check** in that bucket (`10:51PM`). When adjacent columns are half-day buckets
+of the same calendar day, the relative label is one merged cell spanning them. The
+delta sits under the value:
 
 ```
-|   9/1     |   8/28    |   8/24   |
-|-----------|-----------|----------|
-| 105 (+3)  | 102 (+2)  |   100    |
+|         today          | 2 days ago |
+|  9/4 PM   |   9/4 AM    |    9/2     |
+|  10:51PM  |   7:03AM    |   3:15PM   |
+|  77(-4)   |    81       |    79      |
 ```
 
-Adjacent date headers make the baseline self-evident — `+3` under the `9/1` column next
-to an `8/28` column reads as "+$3 since 8/28" without stating it, even when several days
-separate the two. Hover/tap a delta to spell it out explicitly. The oldest shown column,
-and any item on its first-ever check, show a value with no delta.
+The absolute row removes the "two columns both say today" ambiguity that a
+relative-only header had; the relative row keeps the baseline self-evident — `-4`
+under `9/4 PM` next to `9/4 AM` reads as "down 4 since this morning". Hover/tap a delta
+to spell it out. The oldest shown column, and any item's first-ever check, show a value
+with no delta. Implemented in `lib/matrix.ts` (`unionAxis` / `relDaySpans`) +
+`components/{CheckMatrix,WeatherMatrix}.tsx`; `lib/buckets.ts#bucketLabel` is the
+shared `M/D [AM|PM]` formatter and `lib/format.ts#formatClock` the `10:51PM` one.
 
 - `rainAmt` is a quantity of rain for the date (OpenWeather precipitation total).
   OpenWeather always returns precipitation in **mm** even with `units=imperial`; the UI
@@ -85,7 +99,11 @@ and any item on its first-ever check, show a value with no delta.
   into Rain/Wind Speed lanes, both using the same AM/PM-style lane-label pattern). Each
   is a plain number with a numeric delta.
 - The single-item detail page still plots **every raw check** on its graph; the columnar
-  view is the list/home-screen summary.
+  view is the list/home-screen summary. Every detail page also carries its own
+  columnar strip — titled **"By day, latest"** (stocks, custom) or **"By half-day,
+  latest"** (weather, sportsbook) — where each card shows the bucket's date, the time
+  of that bucket's latest check, the value, and the delta; and a **Full history**
+  table of every raw check, newest first.
 - How many columns: a few on the list view, more on the detail page (exact counts TBD
   against the mockups).
 
@@ -121,7 +139,10 @@ the cliff feels wrong in practice.
     - Each date carries a day temperature, night temperature, rain amount, and wind
       speed in one `WeatherCheck` row (no separate rows per metric).
     - Click into a single day view, and you can see a graph of the most recent checks
-      you've made for that day/location. (`mockups/weather-day-page.png`)
+      you've made for that day/location. (`mockups/weather-day-page.png`) Below the
+      Temp and Rain/Wind graphs, each gets a **"By half-day, latest"** column strip
+      (per bucket: date, time of that bucket's latest check, value, delta) and the
+      page ends with a **Full history** table (When · Day · Night · Rain · Wind).
 
 - Stocks page
     - Stocks can be added by searching the ticker symbol, and clicking the "plus sign"
@@ -136,7 +157,9 @@ the cliff feels wrong in practice.
       preferably in bulk. This may be automated to run upon opening the page, but keeping
       it a manual button for now. (`mockups/stock-fetch.png`)
     - Click into a single stock view, and you can see a graph of the most recent checks
-      you've made for that stock. (`mockups/stocks-symbol-page.png`)
+      you've made for that stock. (`mockups/stocks-symbol-page.png`) Plus a **"By day,
+      latest"** column strip (date · time of that day's latest check · price · delta)
+      and a **Full history** table (When · Price).
 
 - Custom checks page
     - Lets a user monitor any value on any page: provide a unique **name**, a **URL**,
@@ -160,6 +183,11 @@ the cliff feels wrong in practice.
       version of this page, before the matrix view existed. A bucket in the matrix
       only reflects a **successful** fetch — an errored fetch contributes no value to
       that row's columns.
+    - **Delta precision: 5 decimal places, hard cap** (`CUSTOM_DELTA_DIGITS` in
+      `lib/customColumns.ts`). Two beyond common fine-grained cases like batting
+      average (`.312`) and win percentage. Deltas render with trailing zeros
+      trimmed (`+0.003`, not `+0.00300`) via `<Delta trimZeros>`. The raw value is
+      still shown at full precision.
     - Errored fetches are surfaced in a separate **Recent errors** table below the main
       one (check name, timestamp, error message), not inline in the value columns.
       Long error text stays on one line and scrolls horizontally rather than wrapping
@@ -171,13 +199,44 @@ the cliff feels wrong in practice.
       table that includes error rows (unlike the home-page table, since debugging one
       check's failures is exactly what this page is for).
 
+- Sportsbook page
+    - Tracks a single sportsbook number — one Odds API `Outcome` (point spread,
+      moneyline, total, player prop, or a futures/award price like MVP odds) — over
+      time, compared only to that check's own earlier values (never book-vs-book).
+      **Full design: `docs/sportsbook.md`.**
+    - Not a sportsbook wrapper: no odds board / standings browsing. The user arrives
+      having already seen a number at a real book and uses a drill-down —
+      **sport → event → market**, plus a **region** selector (default `us`) — to
+      re-find it. Sport / event / market are searchable fuzzy-filter comboboxes over
+      already-loaded lists.
+    - Sport and event lists come from The Odds API's free (0-credit) `/sports` and
+      `/events` endpoints. Picking a market fires **one** `GET event odds` call
+      (1 credit — one market, one region); its `bookmakers[] → markets[] →
+      outcomes[]` are flattened and shown grouped by bookmaker. The user
+      multi-selects one or more `(bookmaker, outcome)` rows to pin — the same outcome
+      at several books is several independent checks. New checks seed their first
+      value from that same response.
+    - **Consolidated view, same shape as Stocks/Weather/Custom**: home groups pinned
+      outcomes into `(event, market, region)` sections, each with one Fetch button
+      that refreshes every check under it in a single 1-credit call. Half-day buckets
+      for the delta baseline (odds move intraday, like weather forecasts).
+    - `price` deltas are shown as an implied-probability change, not a raw
+      American-odds subtraction (the ±100 discontinuity makes raw deltas
+      meaningless); the literal `-110 → +105` is always shown too. `point` (line)
+      deltas are plain numeric.
+    - A check goes `closed` once its event's `commence_time` passes — Fetch disabled,
+      value frozen. The app stays out of live/in-play betting.
+    - Detail page `/sportsbook/[id]`, mirroring `/stocks/[symbol]` and
+      `/custom/[name]`.
+
 ## Data
 
 _High-level only; details go in `docs/schema.md`._
 
 - Stored in IndexedDB (`last-i-checked`)
-- Stores: append-only checks (`StockCheck`, `WeatherCheck`) + registry (`TrackedStock`,
-  `TrackedForecast`) + `Setting` (home location)
+- Stores: append-only checks (`StockCheck`, `WeatherCheck`, `CustomCheck`,
+  `SportsbookCheck`) + registry (`TrackedStock`, `TrackedForecast`, `TrackedCustom`,
+  `TrackedSportsbook`) + `Setting` (home location)
 - **All reads and writes go through one data-access module** (e.g. `lib/store.ts`)
   exposing an app-level interface (`getTrackedStocks()`, `appendStockChecks()`,
   `getChecksForSymbol()`, …). Components and server actions never touch Dexie/IndexedDB
@@ -221,6 +280,26 @@ _High-level only; details go in `docs/schema.md`._
     - Response entries carry `name`, `lat`, `lon`, `country`, optional `state`. Display
       as "City, State, Country"; store `{ name, latLong }` on the `WeatherCheck` /
       `TrackedForecast` / `homeLocation` setting.
+- Sportsbook: The Odds API (`ODDS_API_KEY`). Free "Starter" tier — 500 credits/month,
+  no card; same markets as paid. Credit cost on odds endpoints is
+  `1 × markets × regions`; `/sports` and `/events` cost 0. See `docs/sportsbook.md`
+  for the full flow, market map, and error handling.
+    - **Sport list (0 credits):**
+      `GET https://api.the-odds-api.com/v4/sports?apiKey={key}`
+      Every `active` entry offered (not curated); `has_outrights` marks
+      futures/award "sports" (no events, `outrights`-only), `group` keys the
+      player-prop market map.
+    - **Event list (0 credits):**
+      `GET https://api.the-odds-api.com/v4/sports/{sportKey}/events?apiKey={key}&dateFormat=iso`
+      — `id`, `commence_time`, `home_team`, `away_team`. Event name =
+      `` `${away_team} @ ${home_team}` ``.
+    - **Event odds (1 credit — one market, one region):**
+      `GET https://api.the-odds-api.com/v4/sports/{sportKey}/events/{eventId}/odds?apiKey={key}&regions={region}&markets={marketKey}&oddsFormat=american&dateFormat=iso`
+      Returns `bookmakers[] → markets[] → outcomes[]`; also the Fetch-button call.
+      Featured markets (`h2h` / `spreads` / `totals`) use this same endpoint.
+    - Key errors (401/402, `INVALID_KEY`…) surface a clear "Odds API key problem"
+      message like the Alpaca path; `x-requests-remaining` is read for a
+      credit-usage gauge.
 
 ## Custom URL Checks — Technical Approach
 
@@ -364,7 +443,14 @@ and the text `"$254.32"` next to the user's description, and returns `2`.
   UTC `dt`); dates past the window use `day_summary`, one call each, marked as
   estimates. **Past-dated pins fetch nothing** — the row sits there with a "past date
   — unpin when done" note.
-- **Fahrenheit by default** — `units=imperial` on every OpenWeather call.
+- **Fahrenheit by default** — `units=imperial` on every OpenWeather call; `°F` is
+  also the storage unit (`WeatherCheck.tempUnit` is always `"F"`).
+- **°C is a display-only preference** (Setting key `tempUnit`, `"F"` | `"C"`, chosen
+  in Settings → Weather). Nothing about the fetch or the stored rows changes. When
+  `"C"`: each raw °F value is converted to °C **before** bucketing, so the per-bucket
+  value and the delta are both computed in °C (`numColumnsFor(checks, view, unit)` in
+  `lib/weather-view.ts`); temperature values and deltas then render to 1 decimal
+  place (0 dp for °F). Rain and wind are unaffected.
 - **Rolling weather window stays derived.** Only date+location pairs the user actively
   adds become `TrackedForecast` rows; the home location's today + 9 days are never
   auto-pinned.
@@ -372,10 +458,21 @@ and the text `"$254.32"` next to the user's description, and returns `2`.
   swaps one implementation instead of rewriting call sites.
 - **Export / import-JSON button ships in v1** — the only data-recovery path while there
   is no server copy, and the v2 migration on-ramp.
+- **Sportsbook category** (4th, after Custom) — provider is The Odds API free tier;
+  full design in `docs/sportsbook.md`. Drill-down uses the free `/sports` + `/events`
+  endpoints; pinning and refresh use the 1-credit `GET event odds`. The `Outcome`
+  object is the stored unit (hard dependency on the Odds API schema, accepted). Not a
+  sportsbook wrapper — no discovery/browse UI. Stays out of live betting (checks
+  freeze at `commence_time`). `price` deltas via implied probability, not raw
+  American-odds subtraction. Each browser gets 7 trial credits/month against the
+  shared `ODDS_API_KEY` (tracked in `Setting`, resets monthly / on data-clear);
+  past that the user pastes their own key in Settings → Sportsbook.
 
 ## Open Questions
 
-- Adding Sports page next.
+- Sportsbook page is designed (`docs/sportsbook.md`); its remaining open questions —
+  empty-response credit charging, MVP-futures key stability, decimal-vs-American
+  default, credit-usage gauge, bucket granularity — are tracked there.
 - Pruning / retention for the append-only check stores — deferred; nothing prunes for
   now.
 - Migrating storage to a cloud DB (MongoDB Atlas or similar) — revisit in v2 alongside
@@ -398,3 +495,6 @@ and the text `"$254.32"` next to the user's description, and returns `2`.
 3. Commit init work to a GitHub remote repo
 4. Iterate using puppeteer
 5. Deploy to Vercel and test out first draft
+6. Sportsbook category per `docs/sportsbook.md` — Odds API proxy in `lib/actions/`,
+   `TrackedSportsbook` / `SportsbookCheck` stores, drill-down + `(event, market,
+   region)` section view

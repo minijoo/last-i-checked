@@ -93,7 +93,7 @@ export default function CustomDetailPage({
           )}
 
           <section className="flex flex-col gap-2">
-            <SectionTitle>By day</SectionTitle>
+            <SectionTitle>By day, latest</SectionTitle>
             <CustomColumns columns={columns} />
           </section>
 

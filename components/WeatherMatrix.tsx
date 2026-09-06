@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { NumColumn } from "@/lib/buckets";
 import { formatStamp } from "@/lib/format";
-import { unionAxis } from "@/lib/matrix";
+import { relDaySpans, unionAxis } from "@/lib/matrix";
 import { Delta } from "./Delta";
 
 /** One horizontal band of a weather row. `label` (e.g. "AM"/"PM") is shown as a
@@ -42,6 +42,7 @@ export function WeatherMatrix({
     rows.flatMap((r) => r.lanes.map((l) => l.columns)),
     maxCols,
   );
+  const spans = relDaySpans(axis);
   const hasLaneLabels = rows.some((r) => r.lanes.some((l) => l.label != null));
 
   return (
@@ -49,14 +50,38 @@ export function WeatherMatrix({
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="text-xs text-muted">
-            <th className="sticky left-0 z-10 w-px bg-surface px-2 py-1.5 text-left font-medium" />
-            {hasLaneLabels && <th className="w-px px-1 py-1.5" />}
+            <th
+              rowSpan={3}
+              className="sticky left-0 z-10 w-px bg-surface px-2 py-1.5 text-left font-medium"
+            />
+            {hasLaneLabels && <th rowSpan={3} className="w-px px-1 py-1.5" />}
+            {spans.map((g) => (
+              <th
+                key={g.key}
+                colSpan={g.span}
+                className="whitespace-nowrap px-2 pt-1.5 pb-0.5 text-center font-medium"
+              >
+                {g.relLabel}
+              </th>
+            ))}
+          </tr>
+          <tr className="text-[0.7rem] text-muted">
             {axis.map((c) => (
               <th
                 key={c.key}
-                className="whitespace-nowrap px-2 py-1.5 text-center font-medium"
+                className="whitespace-nowrap px-2 text-center font-normal"
               >
-                {c.label}
+                {c.absLabel}
+              </th>
+            ))}
+          </tr>
+          <tr className="text-[0.65rem] text-muted">
+            {axis.map((c) => (
+              <th
+                key={c.key}
+                className="whitespace-nowrap px-2 pb-1.5 text-center font-normal opacity-80"
+              >
+                {c.timeLabel}
               </th>
             ))}
           </tr>

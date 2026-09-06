@@ -10,7 +10,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: "Last I Checked",
   description:
-    "How your stocks and weather have changed since the last time you checked.",
+    "How your stocks, weather, and sportsbook odds have changed since the last time you checked.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

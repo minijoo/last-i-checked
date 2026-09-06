@@ -9,7 +9,7 @@
 // travel) simply produce no column — the delta then spans to whenever the user
 // last checked, which the date headers make legible.
 
-export type Domain = "stock" | "weather" | "custom";
+export type Domain = "stock" | "weather" | "custom" | "sportsbook";
 
 export interface NumDatum {
   checkedAt: number; // epoch ms
@@ -34,17 +34,17 @@ export function bucketKey(ts: number, domain: Domain): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   const base = `${y}-${m}-${day}`;
-  if (domain === "weather") return d.getHours() < 12 ? `${base}-AM` : `${base}-PM`;
+  // weather forecasts and sportsbook odds both move meaningfully within a day
+  if (domain === "weather" || domain === "sportsbook")
+    return d.getHours() < 12 ? `${base}-AM` : `${base}-PM`;
   return base; // "stock" and "custom" both bucket by calendar day
 }
 
+/** Absolute, compact label for a bucket key: "9/4", or "9/4 PM" for a
+ *  half-day bucket. Used as the column/strip header across every view. */
 export function bucketLabel(key: string): string {
-  const [y, m, d, half] = key.split("-");
-  const date = new Date(Number(y), Number(m) - 1, Number(d));
-  const md = date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  const [, m, d, half] = key.split("-");
+  const md = `${Number(m)}/${Number(d)}`;
   return half ? `${md} ${half}` : md;
 }
 

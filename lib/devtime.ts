@@ -39,10 +39,30 @@ export function nowForCheck(): number {
   return Date.now() + getDevTime().offsetMs;
 }
 
-/** Optionally wobble a fetched number so back-to-back dev fetches differ. */
+/** Optionally wobble a fetched number so back-to-back dev fetches differ.
+ *  Rounds to 2 dp — fine for prices, temps, wind, rain-mm, betting lines. */
 export function jitterValue(n: number): number {
   if (!getDevTime().jitter) return n;
   return Math.round(n * (1 + (Math.random() - 0.5) * 0.05) * 100) / 100;
+}
+
+/** Like jitterValue but keeps 5 dp, so fine-grained custom-check values
+ *  (batting average, win %) still produce a visible delta when wobbled. */
+export function jitterCustom(n: number): number {
+  if (!getDevTime().jitter) return n;
+  return Math.round(n * (1 + (Math.random() - 0.5) * 0.05) * 1e5) / 1e5;
+}
+
+/** Like jitterValue but for American odds: wobble the magnitude by a few
+ *  integer points, keep the sign, and never cross ±100. */
+export function jitterOdds(price: number): number {
+  if (!getDevTime().jitter) return price;
+  const sign = price < 0 ? -1 : 1;
+  const mag = Math.max(
+    101,
+    Math.abs(price) + Math.round((Math.random() - 0.5) * 30),
+  );
+  return sign * mag;
 }
 
 export const IS_DEV = DEV;

@@ -70,8 +70,33 @@ export default function StockDetailPage({
             </Card>
           </section>
           <section className="flex flex-col gap-2">
-            <SectionTitle>By day</SectionTitle>
+            <SectionTitle>By day, latest</SectionTitle>
             <DeltaColumns columns={columns} format={formatPrice} />
+          </section>
+          <section className="flex flex-col gap-2">
+            <SectionTitle>Full history</SectionTitle>
+            <Card className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-muted">
+                    <th className="py-1 pr-4 font-normal">When</th>
+                    <th className="py-1 font-normal">Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...checks].reverse().map((c) => (
+                    <tr key={c.id} className="border-t border-border">
+                      <td className="whitespace-nowrap py-1 pr-4 text-muted">
+                        {formatStamp(c.checkedAt)}
+                      </td>
+                      <td className="whitespace-nowrap py-1 font-mono tabular-nums">
+                        {formatPrice(c.price)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
           </section>
         </>
       )}

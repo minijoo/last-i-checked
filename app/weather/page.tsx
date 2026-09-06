@@ -15,6 +15,7 @@ import { parseCalendarKey, todayCalendarKeys } from "@/lib/format";
 import {
   useAllWeatherChecks,
   useHomeLocation,
+  useTempUnit,
   useTrackedForecasts,
 } from "@/lib/hooks";
 import { store } from "@/lib/store";
@@ -63,6 +64,9 @@ function WeatherTable({
   checks: WeatherCheck[];
   view: HomeView;
 }) {
+  const tempUnit = useTempUnit();
+  const tempDigits = tempUnit === "C" ? 1 : 0;
+
   const rows = useMemo<WeatherRow[]>(() => {
     return entries.map((e) => {
       const { md, wd } = rowDate(e.calKey);
@@ -94,11 +98,15 @@ function WeatherTable({
               },
             ]
           : [
-              { key: "day", label: "AM", columns: numColumnsFor(subset, "day") },
+              {
+                key: "day",
+                label: "AM",
+                columns: numColumnsFor(subset, "day", tempUnit),
+              },
               {
                 key: "night",
                 label: "PM",
-                columns: numColumnsFor(subset, "night"),
+                columns: numColumnsFor(subset, "night", tempUnit),
               },
             ];
       return {
@@ -115,15 +123,13 @@ function WeatherTable({
         lanes,
       };
     });
-  }, [entries, checks, view]);
-
-  const unit = checks.find((c) => c.tempUnit)?.tempUnit ?? "F";
+  }, [entries, checks, view, tempUnit]);
 
   return (
     <WeatherMatrix
       rows={rows}
-      format={view === "rain" ? fmtRainInches : fmtTemp(unit)}
-      digits={view === "rain" ? 2 : 0}
+      format={view === "rain" ? fmtRainInches : fmtTemp(tempUnit)}
+      digits={view === "rain" ? 2 : tempDigits}
     />
   );
 }

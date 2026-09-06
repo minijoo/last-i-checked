@@ -69,8 +69,9 @@ export function DevPanel() {
       <Card className="border-dashed">
         <p className="mb-3 text-xs text-muted">
           Development only — stripped from production. Shifts the timestamp the
-          Fetch buttons write, so checks land in older buckets, and can wobble
-          price/temp so consecutive fetches differ.
+          Fetch buttons write, so checks land in older buckets, and (with the
+          box below) wobbles every fetched number — stocks, weather, custom
+          checks, sportsbook — so consecutive fetches differ.
         </p>
 
         <div className="mb-1 text-xs font-medium text-muted">
@@ -94,7 +95,7 @@ export function DevPanel() {
             checked={cfg.jitter}
             onChange={(e) => apply({ ...cfg, jitter: e.target.checked })}
           />
-          wobble price/temp ±~2.5% per fetch
+          wobble every fetched number ±~2.5% per fetch
         </label>
 
         <div className="flex items-center gap-2">

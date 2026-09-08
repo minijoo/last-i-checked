@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -13,8 +14,18 @@ export function AppNav() {
   return (
     <header className="border-b border-border bg-surface">
       <nav className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-3">
-        <Link href="/" className="text-sm font-semibold tracking-tight">
-          Last I Checked
+        <Link href="/" className="flex items-center gap-2">
+          <Image
+            src="/logos/liclogo.png"
+            alt=""
+            width={24}
+            height={24}
+            priority
+            className="h-6 w-6 shrink-0"
+          />
+          <span className="text-sm font-semibold tracking-tight">
+            Last I Checked
+          </span>
         </Link>
         <div className="flex items-center gap-4">
           {LINKS.map((l) => {

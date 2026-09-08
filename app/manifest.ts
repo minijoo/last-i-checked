@@ -14,11 +14,14 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#090b0c",
     theme_color: "#090b0c",
     icons: [
-      { src: "/logos/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/logos/icon-512.png", sizes: "512x512", type: "image/png" },
       {
-        src: "/logos/icon-512.png",
-        sizes: "512x512",
+        src: "/logos/liclogo_400_x_400.png",
+        sizes: "400x400",
+        type: "image/png",
+      },
+      {
+        src: "/logos/liclogo_400_x_400.png",
+        sizes: "400x400",
         type: "image/png",
         purpose: "maskable",
       },

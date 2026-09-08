@@ -474,10 +474,14 @@ and the text `"$254.32"` next to the user's description, and returns `2`.
   empty-response credit charging, MVP-futures key stability, decimal-vs-American
   default, credit-usage gauge, bucket granularity — are tracked there.
 - **Autocheck** (scheduled per-category fetches + change notifications) —
-  `docs/autocheck.md`. **Phase A shipped** (check-on-open, no Service Worker,
-  cross-browser: `lib/autocheck.ts`, `components/AutocheckRunner.tsx`, Settings →
-  "Schedule Your Checks", per-tab badge). Phase B (best-effort Periodic Background
-  Sync) and Phase C (exact-time Web Push, needs the v2 server) are not done.
+  `docs/autocheck.md`. **Phases A + B shipped**: A = check-on-open
+  (`components/AutocheckRunner.tsx`, Settings → "Schedule Your Checks", per-tab
+  badge); B = installable PWA + provider route handlers (`app/api/{stocks,weather,
+  sportsbook}`) + a bundled service worker (`sw/index.ts` → `public/sw.js`) whose
+  `periodicsync` handler reuses the same tick core. Phase C (exact-time Web Push,
+  needs the v2 server) is not done. Note: the autocheck fetch path now goes through
+  route handlers, not Server Actions — `lib/actions/*` keep only the interactive
+  calls.
 - Pruning / retention for the append-only check stores — deferred; nothing prunes for
   now.
 - Migrating storage to a cloud DB (MongoDB Atlas or similar) — revisit in v2 alongside

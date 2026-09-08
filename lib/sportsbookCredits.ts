@@ -3,7 +3,6 @@
 // key. Everything lives in the Setting store, so it resets when the browser DB
 // is cleared or a new calendar month starts. See docs/sportsbook.md.
 
-import { getEventOdds } from "./actions/sportsbook";
 import { store } from "./store";
 import type { OddsApiEventOdds, OddsResult } from "./types";
 
@@ -97,13 +96,25 @@ export async function chargedEventOdds(
       error: `Trial limit reached (${access.trialUsed}/${access.trialLimit} credits this month). Add your own Odds API key in Settings to keep going.`,
     };
   }
-  const res = await getEventOdds(
+  // Route handler (not a Server Action) so the service worker can call it too.
+  const usp = new URLSearchParams({
     sportKey,
     eventId,
     region,
-    marketKey,
-    access.userKey,
-  );
+    markets: marketKey,
+  });
+  if (access.userKey) usp.set("key", access.userKey);
+  let res: OddsResult<{ odds: OddsApiEventOdds; remaining: string | null }>;
+  try {
+    res = await (await fetch(`/api/sportsbook?${usp.toString()}`)).json();
+  } catch (e) {
+    res = {
+      ok: false,
+      kind: "other",
+      error:
+        e instanceof Error ? e.message : "Network error contacting The Odds API",
+    };
+  }
   // Empty (200, no data) and error responses are not billed by The Odds API.
   if (res.ok && !access.userKey) await recordTrialCreditSpent(1);
   return res;

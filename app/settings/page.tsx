@@ -22,6 +22,7 @@ import {
 } from "@/lib/hooks";
 import { setUserOddsKey } from "@/lib/sportsbookCredits";
 import { store } from "@/lib/store";
+import { syncPeriodicBackground } from "@/lib/sw";
 import type { AutocheckSlot, BackupBlob } from "@/lib/types";
 
 export default function SettingsPage() {
@@ -118,6 +119,8 @@ function ScheduleSection() {
     ) {
       setPerm(await Notification.requestPermission());
     }
+    // Best-effort background sync where the browser supports it (Phase B).
+    void syncPeriodicBackground(cfg.enabled);
     setMsg("Saved. Checks start at the next scheduled time.");
   }
 

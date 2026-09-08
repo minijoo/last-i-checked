@@ -1,31 +1,32 @@
-"use server";
-
-// OpenWeather proxy. Keeps the API key server-side. See docs/plan.md.
-//
-// - Dates within the 10-day window: One Call 4.0 timeline/1day — ONE call returns
-//   10 days (data[0] = today), each stamped at 00:00 UTC.
-// - Dates further out: One Call 3.0 day_summary, one call per date.
-// `units=imperial` for Fahrenheit; precipitation is mm.
+// OpenWeather provider — pure fetch+parse, takes an explicit key. Called by the
+// /api/weather route handler (SW-reachable) and the weather server actions.
 
 import { calendarKeyFromUnixUTC } from "@/lib/format";
 import type { DailyWeather, Result } from "@/lib/types";
 
-const KEY = () => process.env.OPENWEATHER_API_KEY;
-const NO_KEY =
-  "OPENWEATHER_API_KEY not set. Add it to .env.local and restart the dev server.";
-
 function subscriptionError(status: number): string {
   return `OpenWeather responded ${status} — the API key needs an active One Call by Call subscription.`;
+}
+
+interface RawTimelineDay {
+  dt: number;
+  temp?: { day?: number; night?: number };
+  rain?: number;
+  wind_speed?: number;
+}
+
+interface RawSummary {
+  temperature?: { afternoon?: number; night?: number };
+  precipitation?: { total?: number };
+  wind?: { max?: { speed?: number } };
 }
 
 /** 10-day forecast for a point in one call (data[0] = today). */
 export async function fetchTimeline(
   lat: number,
   lon: number,
+  key: string,
 ): Promise<Result<{ days: DailyWeather[] }>> {
-  const key = KEY();
-  if (!key) return { ok: false, error: NO_KEY };
-
   const url =
     `https://api.openweathermap.org/data/4.0/onecall/timeline/1day` +
     `?lat=${lat}&lon=${lon}&units=imperial&appid=${key}`;
@@ -59,16 +60,13 @@ export async function fetchTimeline(
   }
 }
 
-/** One date's summary. `isoDate` is "YYYY-MM-DD". `source` marks horizon, not endpoint. */
-export async function fetchDaySummary(
+async function fetchDaySummary(
   lat: number,
   lon: number,
   isoDate: string,
-  source: "forecast" | "summary" = "summary",
+  source: "forecast" | "summary",
+  key: string,
 ): Promise<Result<{ day: DailyWeather }>> {
-  const key = KEY();
-  if (!key) return { ok: false, error: NO_KEY };
-
   const url =
     `https://api.openweathermap.org/data/3.0/onecall/day_summary` +
     `?lat=${lat}&lon=${lon}&date=${isoDate}&units=imperial&appid=${key}`;
@@ -98,31 +96,20 @@ export async function fetchDaySummary(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "Network error contacting OpenWeather",
+      error:
+        e instanceof Error ? e.message : "Network error contacting OpenWeather",
     };
   }
 }
 
-/** Fetch several dates for one point in parallel. Each item keeps its own ok/error. */
+/** Fetch several dates for one point in parallel. Each keeps its own ok/error. */
 export async function fetchDaySummaries(
   lat: number,
   lon: number,
   dates: Array<{ isoDate: string; source: "forecast" | "summary" }>,
+  key: string,
 ): Promise<Array<Result<{ day: DailyWeather }>>> {
   return Promise.all(
-    dates.map((d) => fetchDaySummary(lat, lon, d.isoDate, d.source)),
+    dates.map((d) => fetchDaySummary(lat, lon, d.isoDate, d.source, key)),
   );
-}
-
-interface RawSummary {
-  temperature?: { afternoon?: number; night?: number };
-  precipitation?: { total?: number };
-  wind?: { max?: { speed?: number } };
-}
-
-interface RawTimelineDay {
-  dt: number;
-  temp?: { day?: number; night?: number };
-  rain?: number;
-  wind_speed?: number;
 }

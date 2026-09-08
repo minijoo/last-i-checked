@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { getDevTime, setDevTime, type DevTime } from "@/lib/devtime";
 import { runStockFetch, runWeatherFetch } from "@/lib/fetchers";
+import { pingServiceWorkerTick } from "@/lib/sw";
 import { Button, Card, SectionTitle } from "./ui";
 
 const DAY = 86_400_000;
@@ -104,6 +105,25 @@ export function DevPanel() {
           </Button>
           <span className="text-xs text-muted">
             fetches at −3d / −2d / −1d / now, jitter on, then restores settings
+          </span>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              const ok = await pingServiceWorkerTick();
+              setStatus(
+                ok
+                  ? "Pinged the service worker — check for a background autocheck."
+                  : "No active service worker yet (reload once).",
+              );
+            }}
+          >
+            Run background tick
+          </Button>
+          <span className="text-xs text-muted">
+            asks the SW to run an autocheck tick now (real periodicSync only fires
+            for an installed PWA)
           </span>
         </div>
         {status && <p className="mt-2 text-xs text-up">{status}</p>}

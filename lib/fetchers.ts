@@ -1,8 +1,6 @@
 // Client-side orchestration for the "Fetch" buttons: pull current data from the
 // external APIs (via server actions) and append checks through the store.
 
-import { fetchDaySummaries, fetchTimeline } from "./actions/weather";
-import { fetchStockQuotes } from "./actions/stocks";
 import { jitterCustom, jitterOdds, jitterValue, nowForCheck } from "./devtime";
 import { calKeyToIso, todayCalendarKeys } from "./format";
 import { makeTrackKey } from "./sportsbook";
@@ -12,7 +10,9 @@ import type {
   CustomScrapeResult,
   DailyWeather,
   LocationRef,
+  Result,
   SportsbookCheck,
+  StockQuote,
   TrackedCustom,
   TrackedSportsbook,
   WeatherCheck,
@@ -63,7 +63,16 @@ export async function runStockFetch(opts?: FetchOpts): Promise<FetchOutcome> {
   const tracked = await store.getTrackedStocks();
   if (tracked.length === 0) return { added: 0, errors: [] };
 
-  const res = await fetchStockQuotes(tracked.map((t) => t.symbol));
+  let res: Result<{ quotes: StockQuote[] }>;
+  try {
+    const q = encodeURIComponent(tracked.map((t) => t.symbol).join(","));
+    res = await (await fetch(`/api/stocks?symbols=${q}`)).json();
+  } catch (e) {
+    return {
+      added: 0,
+      errors: [e instanceof Error ? e.message : "Network error contacting Alpaca"],
+    };
+  }
   if (!res.ok) return { added: 0, errors: [res.error] };
 
   const now = opts?.checkedAt ?? nowForCheck();
@@ -122,32 +131,52 @@ export async function runWeatherFetch(opts?: FetchOpts): Promise<FetchOutcome> {
     const rows: Array<Omit<WeatherCheck, "id">> = [];
 
     if (inWindow.size > 0) {
-      const res = await fetchTimeline(lat, lon); // one call → 10 days
-      if (!res.ok) {
-        errors.push(`${name}: ${res.error}`);
-      } else {
-        for (const d of res.days) {
-          if (!inWindow.has(d.calKey)) continue;
-          rows.push(toRow(now, name, ref, d));
+      try {
+        const res: Result<{ days: DailyWeather[] }> = await (
+          await fetch(`/api/weather?lat=${lat}&lon=${lon}`)
+        ).json();
+        if (!res.ok) {
+          errors.push(`${name}: ${res.error}`);
+        } else {
+          for (const d of res.days) {
+            if (!inWindow.has(d.calKey)) continue;
+            rows.push(toRow(now, name, ref, d));
+          }
         }
+      } catch (e) {
+        errors.push(
+          `${name}: ${e instanceof Error ? e.message : "Network error contacting OpenWeather"}`,
+        );
       }
     }
 
     if (beyond.length > 0) {
-      const results = await fetchDaySummaries(
-        lat,
-        lon,
-        beyond.map((k) => ({
-          isoDate: calKeyToIso(k),
-          source: "summary" as const,
-        })),
-      );
-      for (const res of results) {
-        if (!res.ok) {
-          errors.push(`${name}: ${res.error}`);
-          continue;
+      try {
+        const { results } = (await (
+          await fetch("/api/weather", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lat,
+              lon,
+              dates: beyond.map((k) => ({
+                isoDate: calKeyToIso(k),
+                source: "summary" as const,
+              })),
+            }),
+          })
+        ).json()) as { results: Array<Result<{ day: DailyWeather }>> };
+        for (const res of results) {
+          if (!res.ok) {
+            errors.push(`${name}: ${res.error}`);
+            continue;
+          }
+          rows.push(toRow(now, name, ref, res.day));
         }
-        rows.push(toRow(now, name, ref, res.day));
+      } catch (e) {
+        errors.push(
+          `${name}: ${e instanceof Error ? e.message : "Network error contacting OpenWeather"}`,
+        );
       }
     }
 

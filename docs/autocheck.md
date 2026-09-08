@@ -1,13 +1,25 @@
 # Autocheck — Design
 
-> **Status: Phase A implemented (2026-09-08).** Check-on-open, no service worker.
-> `lib/autocheck.ts` (`dueRuns`, `mergeAutocheck`, `changesFor*`) + tests;
-> `components/AutocheckRunner.tsx` (mounted in `app/layout.tsx`); Settings →
-> "Schedule Your Checks" (`app/settings/page.tsx`); the per-tab badge in
-> `components/PageSwitcher.tsx`; `run*Fetch` in `lib/fetchers.ts` take
-> `{ checkedAt? }` and write `autocheckLastFetch`. `Setting` rows: `autocheck`,
-> `autocheckLastFetch`, `autocheckUnseen`. **Phases B and C are not implemented**
-> (service worker, manifest, provider route-handlers, Web Push).
+> **Status: Phases A + B implemented (2026-09-08).**
+>
+> - **A (check-on-open):** `lib/autocheck.ts` (`dueRuns`, `mergeAutocheck`,
+>   `changesFor*`) + tests; `lib/autocheckTick.ts` (shared tick core: fetch +
+>   diff + cross-tab Web Lock); `components/AutocheckRunner.tsx` in
+>   `app/layout.tsx`; Settings → "Schedule Your Checks"; per-tab badge in
+>   `PageSwitcher`; `run*Fetch` take `{ checkedAt? }` and write
+>   `autocheckLastFetch`. `Setting` rows: `autocheck`, `autocheckLastFetch`,
+>   `autocheckUnseen`.
+> - **B (background):** `app/manifest.ts` + `public/logos/icon-*.png`
+>   (installable); provider fetch/parse in `lib/providers/{stocks,weather,oddsapi}.ts`
+>   behind route handlers `app/api/{stocks,weather,sportsbook}/route.ts` (a SW
+>   can't call a Server Action); `lib/fetchers.ts` + `chargedEventOdds` call the
+>   route handlers; `sw/index.ts` → `public/sw.js` via `scripts/build-sw.mjs`
+>   (esbuild, run by `predev`/`prebuild`, gitignored); `lib/sw.ts` +
+>   `components/ServiceWorker.tsx` register it; `periodicSync` tag
+>   registered/unregistered on Settings save; DevPanel "Run background tick"
+>   exercises the SW's `message` handler (real `periodicsync` needs an installed
+>   PWA and can't be tested locally).
+> - **C (Web Push):** not implemented — needs the v2 server.
 
 Let the app run each category's fetch on a user-set time of day instead of only on
 a manual button press, and notify the user **when — and only when — a tracked value

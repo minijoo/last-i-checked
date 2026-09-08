@@ -473,6 +473,11 @@ and the text `"$254.32"` next to the user's description, and returns `2`.
 - Sportsbook page is designed (`docs/sportsbook.md`); its remaining open questions —
   empty-response credit charging, MVP-futures key stability, decimal-vs-American
   default, credit-usage gauge, bucket granularity — are tracked there.
+- **Autocheck** (scheduled per-category fetches + change notifications) —
+  `docs/autocheck.md`. **Phase A shipped** (check-on-open, no Service Worker,
+  cross-browser: `lib/autocheck.ts`, `components/AutocheckRunner.tsx`, Settings →
+  "Schedule Your Checks", per-tab badge). Phase B (best-effort Periodic Background
+  Sync) and Phase C (exact-time Web Push, needs the v2 server) are not done.
 - Pruning / retention for the append-only check stores — deferred; nothing prunes for
   now.
 - Migrating storage to a cloud DB (MongoDB Atlas or similar) — revisit in v2 alongside

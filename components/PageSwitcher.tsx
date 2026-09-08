@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useAutocheckUnseen } from "@/lib/hooks";
+import { store } from "@/lib/store";
+import type { AutocheckCategory } from "@/lib/types";
 
-const TABS = [
-  { href: "/stocks", label: "Stocks" },
-  { href: "/weather", label: "Weather" },
-  { href: "/sportsbook", label: "Sportsbook" },
-  { href: "/custom", label: "Custom" },
+const TABS: Array<{ href: string; label: string; cat: AutocheckCategory }> = [
+  { href: "/stocks", label: "Stocks", cat: "stocks" },
+  { href: "/weather", label: "Weather", cat: "weather" },
+  { href: "/sportsbook", label: "Sportsbook", cat: "sportsbook" },
+  { href: "/custom", label: "Custom", cat: "custom" },
 ];
 
 /** Highlight fully collapsed to the left — used before we've measured, and on
@@ -21,23 +24,44 @@ function activeIndex(pathname: string): number {
   );
 }
 
+/** Small green count of unseen autochecked changes for a tab. Rendered in both
+ *  the base list and the (aria-hidden) highlight list so their widths match. */
+function Badge({ n }: { n: number }) {
+  if (n <= 0) return null;
+  return (
+    <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-up px-1 text-[0.65rem] font-bold leading-none text-background">
+      {n > 9 ? "9+" : n}
+    </span>
+  );
+}
+
 /**
  * Floating section switcher, pinned bottom-center. Two stacked copies of the
  * same list: the base layer is muted text; the highlight layer is drawn as if
  * every tab were active (filled pill, inverted text) and then clipped with an
- * animated `clip-path` to just the current tab. The colours are always already
- * correct, so moving the pill is a single `clip-path` transition with nothing
- * to time against. Technique: Stripe's blog header (see css-animations skill,
- * "clip-path: seamless tab highlight").
+ * animated `clip-path` to just the current tab. Technique: Stripe's blog header
+ * (see css-animations skill, "clip-path: seamless tab highlight").
  */
 export function PageSwitcher() {
   const pathname = usePathname();
   const active = activeIndex(pathname);
+  const unseen = useAutocheckUnseen();
 
   const listRef = useRef<HTMLUListElement>(null);
   const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
   const [clip, setClip] = useState(HIDDEN_CLIP);
   const [ready, setReady] = useState(false);
+
+  // Opening a tab clears its "changed while you were away" badge.
+  useEffect(() => {
+    if (!unseen) return;
+    const tab = TABS.find(
+      (t) => pathname === t.href || pathname.startsWith(t.href + "/"),
+    );
+    if (tab && (unseen[tab.cat] ?? 0) > 0) {
+      void store.setSetting("autocheckUnseen", { ...unseen, [tab.cat]: 0 });
+    }
+  }, [pathname, unseen]);
 
   useEffect(() => {
     function measure() {
@@ -57,8 +81,6 @@ export function PageSwitcher() {
     }
 
     measure();
-    // Enable the transition only after the first measured position is painted,
-    // so the pill doesn't slide in from the edge on load.
     const raf = requestAnimationFrame(() => setReady(true));
     window.addEventListener("resize", measure);
     document.fonts?.ready.then(measure).catch(() => {});
@@ -66,7 +88,7 @@ export function PageSwitcher() {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", measure);
     };
-  }, [active]);
+  }, [active, unseen]);
 
   return (
     <nav
@@ -85,9 +107,10 @@ export function PageSwitcher() {
               <Link
                 href={t.href}
                 aria-current={i === active ? "page" : undefined}
-                className="block rounded-full px-4 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground"
+                className="flex items-center rounded-full px-4 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground"
               >
                 {t.label}
+                <Badge n={unseen?.[t.cat] ?? 0} />
               </Link>
             </li>
           ))}
@@ -101,8 +124,9 @@ export function PageSwitcher() {
         >
           {TABS.map((t) => (
             <li key={t.href}>
-              <span className="block rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background">
+              <span className="flex items-center rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background">
                 {t.label}
+                <Badge n={unseen?.[t.cat] ?? 0} />
               </span>
             </li>
           ))}

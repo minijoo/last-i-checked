@@ -45,6 +45,23 @@ export interface Setting {
   value: unknown;
 }
 
+// ---- Autocheck (scheduled fetches) — see docs/autocheck.md ----
+
+export type AutocheckCategory = "stocks" | "weather" | "custom" | "sportsbook";
+export type AutocheckSlot = "day" | "am" | "pm";
+
+/** Setting "autocheck". `HH:MM` is local wall-clock; `null` = that slot is off. */
+export interface AutocheckConfig {
+  enabled: boolean;
+  notify: boolean; // show a notification when a run finds a change
+  slots: {
+    stocks: { day: string | null };
+    custom: { day: string | null };
+    weather: { am: string | null; pm: string | null };
+    sportsbook: { am: string | null; pm: string | null };
+  };
+}
+
 /** Registry: custom URL/selector checks the user is tracking right now. */
 export interface TrackedCustom {
   name: string; // PK, unique, user-provided

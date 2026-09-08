@@ -1,22 +1,35 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DevPanel } from "@/components/DevPanel";
 import { LocationSearch } from "@/components/LocationSearch";
 import { Button, Card, Input, SectionTitle } from "@/components/ui";
 import {
+  AUTOCHECK_CATEGORIES,
+  AUTOCHECK_LABEL,
+  isValidSlotTime,
+  mergeAutocheck,
+  slotsFor,
+  slotTime,
+  type AutocheckCategory,
+  type AutocheckConfig,
+} from "@/lib/autocheck";
+import {
+  useAutocheckConfig,
   useHomeLocation,
   useSportsbookAccess,
   useTempUnit,
 } from "@/lib/hooks";
 import { setUserOddsKey } from "@/lib/sportsbookCredits";
 import { store } from "@/lib/store";
-import type { BackupBlob } from "@/lib/types";
+import type { AutocheckSlot, BackupBlob } from "@/lib/types";
 
 export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+
+      <ScheduleSection />
 
       <WeatherSection />
 
@@ -26,6 +39,181 @@ export default function SettingsPage() {
 
       {process.env.NODE_ENV === "development" && <DevPanel />}
     </div>
+  );
+}
+
+function ScheduleSection() {
+  const saved = useAutocheckConfig();
+  const access = useSportsbookAccess();
+  const [draft, setDraft] = useState<AutocheckConfig | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [perm, setPerm] = useState<NotificationPermission | "unsupported">(
+    "unsupported",
+  );
+
+  useEffect(() => {
+    // One-time read of browser permission state after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (typeof Notification !== "undefined") setPerm(Notification.permission);
+  }, []);
+
+  if (!saved) return null;
+  const cfg = draft ?? saved;
+  const dirty = draft !== null;
+
+  function edit(next: AutocheckConfig) {
+    setDraft(next);
+    setMsg(null);
+    setErr(null);
+  }
+  function setSlot(cat: AutocheckCategory, slot: AutocheckSlot, v: string | null) {
+    edit({
+      ...cfg,
+      slots: {
+        ...cfg.slots,
+        [cat]: { ...(cfg.slots[cat] as Record<string, string | null>), [slot]: v },
+      } as AutocheckConfig["slots"],
+    });
+  }
+
+  async function save() {
+    for (const cat of ["weather", "sportsbook"] as const) {
+      for (const s of ["am", "pm"] as const) {
+        const t = slotTime(cfg, cat, s);
+        if (t && !isValidSlotTime(s, t)) {
+          setErr(
+            `${AUTOCHECK_LABEL[cat]} ${s.toUpperCase()} time must be ${
+              s === "am" ? "before 12:00" : "12:00 or later"
+            }.`,
+          );
+          return;
+        }
+      }
+    }
+
+    const prev = mergeAutocheck(await store.getSetting("autocheck"));
+    const slotsChanged =
+      JSON.stringify(prev.slots) !== JSON.stringify(cfg.slots);
+    // A schedule edit never triggers a fetch: re-baseline lastFetch to now so
+    // already-passed slots today don't retro-fire. (docs/autocheck.md)
+    if (cfg.enabled && (!prev.enabled || slotsChanged)) {
+      const lf =
+        (await store.getSetting<Record<string, number>>("autocheckLastFetch")) ??
+        {};
+      const now = Date.now();
+      for (const cat of AUTOCHECK_CATEGORIES) {
+        if (slotsFor(cat).some((s) => slotTime(cfg, cat, s))) lf[cat] = now;
+      }
+      await store.setSetting("autocheckLastFetch", lf);
+    }
+    await store.setSetting("autocheck", cfg);
+    setDraft(null);
+
+    if (
+      cfg.enabled &&
+      cfg.notify &&
+      typeof Notification !== "undefined" &&
+      Notification.permission === "default"
+    ) {
+      setPerm(await Notification.requestPermission());
+    }
+    setMsg("Saved. Checks start at the next scheduled time.");
+  }
+
+  const noKey = access ? !access.userKey : true;
+
+  return (
+    <section className="flex flex-col gap-2">
+      <SectionTitle>Schedule Your Checks</SectionTitle>
+      <Card className="flex flex-col gap-4">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={cfg.enabled}
+            onChange={(e) => edit({ ...cfg, enabled: e.target.checked })}
+          />
+          Run checks automatically at set times
+        </label>
+
+        {cfg.enabled && (
+          <>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={cfg.notify}
+                onChange={(e) => edit({ ...cfg, notify: e.target.checked })}
+              />
+              Notify me when a value changed
+            </label>
+            {cfg.notify && perm === "denied" && (
+              <p className="text-xs text-down">
+                Notifications are blocked for this site in your browser settings —
+                you&apos;ll still see a badge on the tab.
+              </p>
+            )}
+            {cfg.notify && perm === "unsupported" && (
+              <p className="text-xs text-muted">
+                This browser can&apos;t show notifications — you&apos;ll see a badge
+                on the tab instead.
+              </p>
+            )}
+
+            <div className="flex flex-col gap-3">
+              {AUTOCHECK_CATEGORIES.map((cat) => (
+                <div key={cat} className="flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted">
+                    {AUTOCHECK_LABEL[cat]}
+                  </span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {slotsFor(cat).map((slot) => (
+                      <label
+                        key={slot}
+                        className="flex items-center gap-1.5 text-xs text-muted"
+                      >
+                        {slot !== "day" && (
+                          <span className="uppercase">{slot}</span>
+                        )}
+                        <input
+                          type="time"
+                          value={slotTime(cfg, cat, slot) ?? ""}
+                          max={slot === "am" ? "11:59" : undefined}
+                          min={slot === "pm" ? "12:00" : undefined}
+                          onChange={(e) =>
+                            setSlot(cat, slot, e.target.value || null)
+                          }
+                          className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-foreground"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  {cat === "sportsbook" && (
+                    <p className="text-xs text-muted">
+                      ≈2 credits/day · about 3 days on the 7/month trial.
+                      {noKey && " Add your own Odds API key above so scheduled checks don't burn your trial."}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <p className="text-xs text-muted">
+              Times are your device&apos;s local clock. Checks run when you next
+              open or focus the app at or after each time — background runs need
+              an installed app and are approximate.
+            </p>
+          </>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Button onClick={save} disabled={!dirty}>
+            Save
+          </Button>
+          {msg && <span className="text-xs text-up">{msg}</span>}
+          {err && <span className="text-xs text-down">{err}</span>}
+        </div>
+      </Card>
+    </section>
   );
 }
 

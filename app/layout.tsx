@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppNav } from "@/components/AppNav";
+import { AutocheckRunner } from "@/components/AutocheckRunner";
 import { PageSwitcher } from "@/components/PageSwitcher";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
         <PageSwitcher />
+        <AutocheckRunner />
       </body>
     </html>
   );

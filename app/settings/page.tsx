@@ -20,6 +20,7 @@ import {
   useSportsbookAccess,
   useTempUnit,
 } from "@/lib/hooks";
+import { IS_DEV } from "@/lib/devtime";
 import { setUserOddsKey } from "@/lib/sportsbookCredits";
 import { store } from "@/lib/store";
 import { syncPeriodicBackground } from "@/lib/sw";
@@ -38,7 +39,7 @@ export default function SettingsPage() {
 
       <BackupSection />
 
-      {process.env.NODE_ENV === "development" && <DevPanel />}
+      {IS_DEV && <DevPanel />}
     </div>
   );
 }

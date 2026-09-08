@@ -12,9 +12,17 @@ await build({
   target: "es2022",
   platform: "browser",
   minify: process.env.NODE_ENV === "production",
+  // Replace every process.env ref the bundled lib code touches with a literal —
+  // the SW has no `process`, so a bare reference would throw at eval time.
   define: {
     "process.env.NODE_ENV": JSON.stringify(
       process.env.NODE_ENV ?? "development",
+    ),
+    "process.env.NEXT_PUBLIC_VERCEL_ENV": JSON.stringify(
+      process.env.NEXT_PUBLIC_VERCEL_ENV ?? "",
+    ),
+    "process.env.NEXT_PUBLIC_DEV_TOOLS": JSON.stringify(
+      process.env.NEXT_PUBLIC_DEV_TOOLS ?? "",
     ),
   },
   logLevel: "info",

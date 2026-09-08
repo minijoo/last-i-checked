@@ -1,10 +1,14 @@
-// Dev-only test aid. Lets the "Fetch" buttons write checks into older buckets
-// and wobble the numbers, so the delta-column path can be exercised without
-// waiting for real days/forecast changes to pass. Inert in production builds:
-// every accessor short-circuits unless NODE_ENV === "development".
+// Dev test aid. Lets the "Fetch" buttons write checks into older buckets and
+// wobble the numbers, so the delta-column path can be exercised without waiting
+// for real days/forecast changes to pass. Active in local dev, on Vercel
+// preview deployments, and when NEXT_PUBLIC_DEV_TOOLS=1 — inert in real
+// production. Every accessor short-circuits unless DEV.
 
 const KEY = "lic:devtime";
-const DEV = process.env.NODE_ENV === "development";
+const DEV =
+  process.env.NODE_ENV === "development" ||
+  process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+  process.env.NEXT_PUBLIC_DEV_TOOLS === "1";
 
 export interface DevTime {
   offsetMs: number; // added to Date.now() when stamping a check

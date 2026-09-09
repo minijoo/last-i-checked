@@ -17,6 +17,32 @@ function cfg(over: Partial<AutocheckConfig["slots"]> = {}, enabled = true): Auto
   return mergeAutocheck({ enabled, notify: true, slots: over });
 }
 
+test("mergeAutocheck: a never-configured value gets the default slot times, disabled", () => {
+  const c = mergeAutocheck(undefined);
+  assert.equal(c.enabled, false);
+  assert.deepEqual(c.slots.stocks, { day: "15:30" });
+  assert.deepEqual(c.slots.weather, { am: "06:00", pm: "18:00" });
+  assert.deepEqual(c.slots.sportsbook, { am: "06:00", pm: "18:00" });
+  assert.deepEqual(c.slots.custom, { day: "18:00" });
+});
+
+test("mergeAutocheck: once saved, explicit nulls (slots turned off) are kept", () => {
+  const c = mergeAutocheck({
+    enabled: true,
+    notify: true,
+    slots: {
+      stocks: { day: null },
+      custom: { day: "07:00" },
+      weather: { am: null, pm: "20:00" },
+      sportsbook: { am: null, pm: null },
+    },
+  });
+  assert.equal(c.slots.stocks.day, null);
+  assert.equal(c.slots.custom.day, "07:00");
+  assert.equal(c.slots.weather.am, null);
+  assert.equal(c.slots.weather.pm, "20:00");
+});
+
 test("parseHHMM / isValidSlotTime", () => {
   assert.equal(parseHHMM("09:30"), 570);
   assert.equal(parseHHMM("9:5"), null);

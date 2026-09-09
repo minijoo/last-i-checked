@@ -208,10 +208,12 @@ On the **Save** click (a user gesture — required for the permission prompt):
    moment Save is clicked. Checks begin at the **next** scheduled occurrence. UI
    copy: *"Checks start at the next scheduled time."*
 
-**Defaults on enable:** flipping the master toggle on sets **no** slot times — the
-user picks each one explicitly. Time pickers show a suggested placeholder (`09:00`
-for `day`/`am`, `18:00` for `pm`). Sportsbook slots additionally default off even
-after the user opens that row (see *Edge cases → Sportsbook*).
+**Default slot times.** A never-configured schedule (`Setting["autocheck"]` unset)
+starts with every slot pre-filled — stocks `15:30`, custom `18:00`, weather /
+sportsbook `06:00` AM + `18:00` PM — but `enabled: false`, so the user reviews and
+turns it on. `mergeAutocheck` applies these only when the stored value has no
+`slots` key; once saved, explicit `null`s (slots the user turned off) are kept.
+`DEFAULT_AUTOCHECK` in `lib/autocheck.ts`.
 
 ## Schedule changes
 
@@ -309,8 +311,8 @@ and fills any gap.
   self-capping: `chargedEventOdds` blocks at 7 credits/month per browser, so the
   shared key can't be drained regardless. The only cost is the "worked for 3 days
   then stopped" surprise, handled by:
-  - sportsbook slots **default off** (even after the user opens that settings row);
-  - the row shows *"≈2 credits/day · ~3 days on the 7/month trial"*;
+  - the row shows *"≈2 credits/day · ~3 days on the 7/month trial"* (the slots are
+    pre-filled like the others — the whole schedule still starts `enabled: false`);
   - a stronger *"add your own Odds API key (free, 500/month) so scheduled checks
     don't burn your trial"* nudge when no `oddsApiKey` is set;
   - a **one-shot** notification the first time an autocheck hits `blocked` (flagged
@@ -327,8 +329,8 @@ and fills any gap.
    shapes into `schema.md`. `run*Fetch` take `{ checkedAt? }` and write
    `autocheckLastFetch`.
 2. Settings → **"Schedule Your Checks"** section: per-category time pickers (AM/PM
-   constrained, suggested placeholders), master + notify toggles; sportsbook slots
-   default off with the credit-cost line and the no-key nudge.
+   constrained, pre-filled from `DEFAULT_AUTOCHECK`), master + notify toggles;
+   sportsbook row shows the credit-cost line and the no-key nudge.
 3. `<AutocheckRunner/>` in `layout.tsx`: mount + `visibilitychange` + 5 min interval
    while visible → `navigator.locks` → `dueRuns` → fetch → diff → notify +
    `autocheckUnseen` badge in `PageSwitcher`. **← usable after this.**
@@ -345,8 +347,8 @@ and fills any gap.
   first enable and on every edit; the new time takes effect from its next occurrence.
 - **No backfill of past days** — `dueRuns` only evaluates today's slot instances.
 - **Sportsbook autocheck: allow, don't gate.** Self-capped at 7 credits/month by
-  `chargedEventOdds`. Slots default off; the settings row shows the credit cost and a
-  "add your own key" nudge; one-shot notification on the first `blocked`.
+  `chargedEventOdds`. The settings row shows the credit cost and a "add your own key"
+  nudge; one-shot notification on the first `blocked`.
 - **`periodicSync` `minInterval` = fixed 4 h**, registered idempotently. The browser
   clamps to its own cap; deriving it from slot gaps buys nothing.
 - **One notification per *changed* category per run**, tagged so fresh replaces
@@ -355,8 +357,10 @@ and fills any gap.
   when notifications are denied), cleared on page open. No per-page banner.
 - **Phase-A runner ticks on mount + `visibilitychange` → visible + a 5 min interval
   while visible**, all through one `navigator.locks`-guarded `dueRuns()` call.
-- **Defaults on enable:** no slot times auto-set; time pickers show suggested
-  placeholders.
+- **Default slot times** for a never-configured schedule (still `enabled: false`):
+  stocks `15:30`, custom `18:00`, weather / sportsbook `06:00` + `18:00`
+  (`DEFAULT_AUTOCHECK`). Applied only when the stored value has no `slots` key; saved
+  `null`s are preserved.
 
 ## Open questions
 

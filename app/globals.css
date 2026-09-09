@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
 :root {
+  /* Tell the UA the page supports both schemes so it follows the system
+     preference — required for `@media (prefers-color-scheme: dark)` to take
+     effect in an iOS standalone PWA, and it also themes native form controls
+     and scrollbars. */
+  color-scheme: light dark;
+
   --background: #fafaf9;
   --surface: #ffffff;
   --border: #e7e5e4;

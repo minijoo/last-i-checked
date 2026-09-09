@@ -9,14 +9,21 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { extractCandidates } from "@/lib/extractCandidates";
-import { launchBrowser } from "@/lib/launchBrowser";
+import {
+  gotoResilient,
+  launchBrowser,
+  openScrapePage,
+} from "@/lib/launchBrowser";
 import { assertPublicUrl } from "@/lib/ssrfGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX_CANDIDATES = 200;
-const NAV_TIMEOUT_MS = 20_000;
+// This route reads the parsed DOM straight after navigating (page.evaluate),
+// so it can't use the "commit" fast-path the scrape route does — give the
+// heavier SPAs more room to reach domcontentloaded.
+const NAV_TIMEOUT_MS = 35_000;
 
 const NO_KEY =
   "ANTHROPIC_API_KEY not set. Add it to .env.local and restart the dev server.";
@@ -65,9 +72,9 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const page = await browser.newPage();
+    const page = await openScrapePage(browser);
     try {
-      await page.goto(url, { timeout: NAV_TIMEOUT_MS, waitUntil: "domcontentloaded" });
+      await gotoResilient(page, url, NAV_TIMEOUT_MS, "domcontentloaded");
       const title = await page.title();
       const candidates = await page.evaluate(extractCandidates, MAX_CANDIDATES);
 

@@ -6,7 +6,7 @@
 // plain fetch() from the client runs independently. See docs/plan.md
 // "Custom URL Checks — Technical Approach".
 
-import { launchBrowser } from "@/lib/launchBrowser";
+import { gotoResilient, launchBrowser, openScrapePage } from "@/lib/launchBrowser";
 import { assertPublicUrl } from "@/lib/ssrfGuard";
 import type { CustomScrapeResult } from "@/lib/types";
 
@@ -67,9 +67,9 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const page = await browser.newPage();
+    const page = await openScrapePage(browser);
     try {
-      await page.goto(url, { timeout: NAV_TIMEOUT_MS, waitUntil: "domcontentloaded" });
+      await gotoResilient(page, url, NAV_TIMEOUT_MS);
       const el = await page.waitForSelector(selector, { timeout: SELECTOR_TIMEOUT_MS });
       const rawText = (await el.textContent()) ?? "";
       const parsed = parseValue(rawText, valueType);

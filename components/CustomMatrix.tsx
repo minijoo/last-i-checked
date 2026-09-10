@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { type CustomColumn, CUSTOM_DELTA_DIGITS } from "@/lib/customColumns";
+import { pctChange } from "@/lib/format";
 import { unionAxis } from "@/lib/matrix";
 import { rowHeadClass, Shell } from "./CheckMatrix";
 import { Delta } from "./Delta";
@@ -17,9 +18,11 @@ const cellBlank = <span className="text-muted">·</span>;
 export function CustomMatrix({
   rows,
   maxCols = 4,
+  percent = false,
 }: {
   rows: CustomMatrixRow[];
   maxCols?: number;
+  percent?: boolean;
 }) {
   const axis = unionAxis(
     rows.map((r) => r.columns),
@@ -51,11 +54,19 @@ export function CustomMatrix({
                   </div>
                   {cell.delta !== null && (
                     <div className="text-xs">
-                      <Delta
-                        value={cell.delta}
-                        digits={CUSTOM_DELTA_DIGITS}
-                        trimZeros
-                      />
+                      {percent && typeof cell.value === "number" ? (
+                        <Delta
+                          value={pctChange(cell.delta, cell.value)}
+                          digits={2}
+                          suffix="%"
+                        />
+                      ) : (
+                        <Delta
+                          value={cell.delta}
+                          digits={CUSTOM_DELTA_DIGITS}
+                          trimZeros
+                        />
+                      )}
                     </div>
                   )}
                 </td>

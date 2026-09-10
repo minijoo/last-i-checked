@@ -5,16 +5,18 @@ import { useMemo } from "react";
 import { AddSymbolForm } from "@/components/AddSymbolForm";
 import { NumMatrix, type NumRow } from "@/components/CheckMatrix";
 import { FetchBar } from "@/components/FetchBar";
+import { MatrixFrame } from "@/components/MatrixFrame";
 import { Card } from "@/components/ui";
 import { toColumns } from "@/lib/buckets";
 import { runStockFetch } from "@/lib/fetchers";
 import { formatPrice } from "@/lib/format";
-import { useAllStockChecks, useTrackedStocks } from "@/lib/hooks";
+import { useAllStockChecks, useDeltaMode, useTrackedStocks } from "@/lib/hooks";
 import { store } from "@/lib/store";
 
 export default function StocksPage() {
   const tracked = useTrackedStocks();
   const checks = useAllStockChecks();
+  const asPercent = useDeltaMode("stocks") === "pct";
   const loading = tracked === undefined || checks === undefined;
 
   const rows = useMemo<NumRow[]>(() => {
@@ -72,11 +74,15 @@ export default function StocksPage() {
         </Card>
       ) : (
         <Card>
-          <NumMatrix rows={rows} format={formatPrice} />
+          <MatrixFrame page="stocks">
+            <NumMatrix rows={rows} format={formatPrice} percent={asPercent} />
+          </MatrixFrame>
           <p className="mt-3 text-xs text-muted">
             Columns are the days you fetched. A blank cell means no check that day
             (symbol added later, or untracked then re-tracked). Deltas compare
-            each symbol against its own previous check.
+            each symbol against its own previous check; the{" "}
+            <span className="text-foreground">%</span> toggle switches them
+            between absolute and percent change.
           </p>
         </Card>
       )}

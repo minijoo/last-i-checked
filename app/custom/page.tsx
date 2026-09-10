@@ -6,11 +6,12 @@ import { AddCustomCheckForm } from "@/components/AddCustomCheckForm";
 import { CustomCheckCard } from "@/components/CustomCheckCard";
 import { CustomMatrix, type CustomMatrixRow } from "@/components/CustomMatrix";
 import { FetchBar } from "@/components/FetchBar";
+import { MatrixFrame } from "@/components/MatrixFrame";
 import { Card, SectionTitle } from "@/components/ui";
 import { toCustomColumns } from "@/lib/customColumns";
 import { runCustomFetch } from "@/lib/fetchers";
 import { formatStamp } from "@/lib/format";
-import { useAllCustomChecks, useTrackedCustoms } from "@/lib/hooks";
+import { useAllCustomChecks, useDeltaMode, useTrackedCustoms } from "@/lib/hooks";
 import { store } from "@/lib/store";
 
 const MAIN_COLS = 4;
@@ -19,6 +20,7 @@ const MAX_ERRORS = 10;
 export default function CustomPage() {
   const tracked = useTrackedCustoms();
   const checks = useAllCustomChecks();
+  const asPercent = useDeltaMode("custom") === "pct";
   const loading = tracked === undefined || checks === undefined;
 
   // Text values are kept out of the shared-column matrix entirely — a long
@@ -106,10 +108,18 @@ export default function CustomPage() {
         <>
           {rows.length > 0 && (
             <Card>
-              <CustomMatrix rows={rows} maxCols={MAIN_COLS} />
+              <MatrixFrame page="custom">
+                <CustomMatrix
+                  rows={rows}
+                  maxCols={MAIN_COLS}
+                  percent={asPercent}
+                />
+              </MatrixFrame>
               <p className="mt-3 text-xs text-muted">
                 Columns are the last {MAIN_COLS} days you fetched successfully. Open a
-                check for its full history and graph.
+                check for its full history and graph. The{" "}
+                <span className="text-foreground">%</span> toggle switches deltas
+                between absolute and percent change.
               </p>
             </Card>
           )}

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { pctChange } from "@/lib/format";
 import { relDaySpans, unionAxis } from "@/lib/matrix";
 import { formatAmerican, formatPoint, type OddsColumn } from "@/lib/sportsbook";
 import { Delta } from "./Delta";
@@ -23,9 +24,11 @@ type LaneKind = "line" | "price";
 export function SportsbookMatrix({
   rows,
   maxCols = 5,
+  percent = false,
 }: {
   rows: SportsbookRow[];
   maxCols?: number;
+  percent?: boolean;
 }) {
   const axis = unionAxis(
     rows.map((r) => r.columns),
@@ -118,12 +121,23 @@ export function SportsbookMatrix({
                           : formatAmerican(value)}
                       </div>
                       <div className="text-xs">
-                        <Delta
-                          value={
-                            lane === "line" ? col.pointDelta : col.priceDelta
-                          }
-                          digits={lane === "line" ? 1 : 0}
-                        />
+                        {percent ? (
+                          <Delta
+                            value={pctChange(
+                              lane === "line" ? col.pointDelta : col.priceDelta,
+                              value,
+                            )}
+                            digits={2}
+                            suffix="%"
+                          />
+                        ) : (
+                          <Delta
+                            value={
+                              lane === "line" ? col.pointDelta : col.priceDelta
+                            }
+                            digits={lane === "line" ? 1 : 0}
+                          />
+                        )}
                       </div>
                     </td>
                   );

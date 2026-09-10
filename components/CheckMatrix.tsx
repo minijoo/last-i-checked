@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { NumColumn } from "@/lib/buckets";
-import { formatStamp } from "@/lib/format";
+import { formatStamp, pctChange } from "@/lib/format";
 import { type AxisCol, relDaySpans, unionAxis } from "@/lib/matrix";
 import { Delta } from "./Delta";
 
@@ -71,17 +71,21 @@ export function Shell({
 export const rowHeadClass =
   "sticky left-0 z-10 bg-surface px-2 py-2 text-left align-top font-medium whitespace-nowrap";
 
-/** Consolidated numeric table: shared date axis, one row per item. */
+/** Consolidated numeric table: shared date axis, one row per item.
+ *  With `percent`, each delta is shown as a percent change from the previous
+ *  populated column ((value − prev) / prev × 100), fixed at 2 decimals. */
 export function NumMatrix({
   rows,
   format = (n) => n.toFixed(2),
   digits = 2,
   maxCols = 6,
+  percent = false,
 }: {
   rows: NumRow[];
   format?: (n: number) => string;
   digits?: number;
   maxCols?: number;
+  percent?: boolean;
 }) {
   const axis = unionAxis(
     rows.map((r) => r.columns),
@@ -105,6 +109,9 @@ export function NumMatrix({
               }
               const older =
                 r.columns[r.columns.findIndex((x) => x.key === c.key) + 1];
+              // Percent change off the previous populated column. null (→ "—")
+              // for the oldest column and when the baseline is 0.
+              const pctDelta = pctChange(cell.delta, cell.value);
               const title =
                 cell.delta === null
                   ? `First recorded check, ${formatStamp(cell.at)}`
@@ -119,7 +126,11 @@ export function NumMatrix({
                     {format(cell.value)}
                   </div>
                   <div className="text-xs">
-                    <Delta value={cell.delta} digits={digits} />
+                    {percent ? (
+                      <Delta value={pctDelta} digits={2} suffix="%" />
+                    ) : (
+                      <Delta value={cell.delta} digits={digits} />
+                    )}
                   </div>
                 </td>
               );

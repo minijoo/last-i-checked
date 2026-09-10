@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AddSportsbookForm } from "@/components/AddSportsbookForm";
 import { FetchBar } from "@/components/FetchBar";
+import { MatrixFrame } from "@/components/MatrixFrame";
 import {
   SportsbookMatrix,
   type SportsbookRow,
@@ -13,6 +14,7 @@ import { runSportsbookFetch } from "@/lib/fetchers";
 import { formatStamp } from "@/lib/format";
 import {
   useAllSportsbookChecks,
+  useDeltaMode,
   useSportsbookAccess,
   useTrackedSportsbook,
 } from "@/lib/hooks";
@@ -34,6 +36,7 @@ export default function SportsbookPage() {
   const tracked = useTrackedSportsbook();
   const checks = useAllSportsbookChecks();
   const access = useSportsbookAccess();
+  const asPercent = useDeltaMode("sportsbook") === "pct";
   const loading = tracked === undefined || checks === undefined;
 
   const groups = useMemo(() => {
@@ -168,7 +171,9 @@ export default function SportsbookPage() {
                 </span>
               </div>
               <Card className="flex flex-col gap-3">
-                <SportsbookMatrix rows={rows} />
+                <MatrixFrame page="sportsbook">
+                  <SportsbookMatrix rows={rows} percent={asPercent} />
+                </MatrixFrame>
                 {sec.closed ? (
                   <p className="text-xs text-muted">
                     Event has started. The app stays out of live betting, so this

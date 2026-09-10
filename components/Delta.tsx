@@ -2,16 +2,19 @@ import { formatDelta } from "@/lib/format";
 
 /** A signed delta: green ▲ up, red ▼ down, grey flat, "—" when there's no
  *  baseline. `digits` is the precision; with `trimZeros` it's a cap and
- *  trailing zeros are dropped (e.g. custom checks tracking batting average). */
+ *  trailing zeros are dropped (e.g. custom checks tracking batting average).
+ *  `suffix` is appended to the number (e.g. "%" for percent-change mode). */
 export function Delta({
   value,
   digits = 2,
   trimZeros = false,
+  suffix = "",
   className = "",
 }: {
   value: number | null;
   digits?: number;
   trimZeros?: boolean;
+  suffix?: string;
   className?: string;
 }) {
   if (value === null) {
@@ -36,6 +39,7 @@ export function Delta({
         {arrow}
       </span>{" "}
       {body}
+      {suffix}
     </span>
   );
 }

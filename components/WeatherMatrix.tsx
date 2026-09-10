@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { NumColumn } from "@/lib/buckets";
-import { formatStamp } from "@/lib/format";
+import { formatStamp, pctChange } from "@/lib/format";
 import { relDaySpans, unionAxis } from "@/lib/matrix";
 import { Delta } from "./Delta";
 
@@ -32,11 +32,13 @@ export function WeatherMatrix({
   format = (n) => n.toFixed(2),
   digits = 2,
   maxCols = 6,
+  percent = false,
 }: {
   rows: WeatherRow[];
   format?: (n: number) => string;
   digits?: number;
   maxCols?: number;
+  percent?: boolean;
 }) {
   const axis = unionAxis(
     rows.flatMap((r) => r.lanes.map((l) => l.columns)),
@@ -143,7 +145,15 @@ export function WeatherMatrix({
                           {fmt(cell.value)}
                         </div>
                         <div className="text-xs">
-                          <Delta value={cell.delta} digits={dig} />
+                          {percent ? (
+                            <Delta
+                              value={pctChange(cell.delta, cell.value)}
+                              digits={2}
+                              suffix="%"
+                            />
+                          ) : (
+                            <Delta value={cell.delta} digits={dig} />
+                          )}
                         </div>
                       </td>
                     );

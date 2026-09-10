@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { FetchBar } from "@/components/FetchBar";
 import { LocationSearch } from "@/components/LocationSearch";
+import { MatrixFrame } from "@/components/MatrixFrame";
 import { Button, Card, SectionTitle } from "@/components/ui";
 import {
   type WeatherLane,
@@ -14,6 +15,7 @@ import { HOME_WINDOW_DAYS, runWeatherFetch } from "@/lib/fetchers";
 import { parseCalendarKey, todayCalendarKeys } from "@/lib/format";
 import {
   useAllWeatherChecks,
+  useDeltaMode,
   useHomeLocation,
   useTempUnit,
   useTrackedForecasts,
@@ -66,6 +68,7 @@ function WeatherTable({
 }) {
   const tempUnit = useTempUnit();
   const tempDigits = tempUnit === "C" ? 1 : 0;
+  const asPercent = useDeltaMode("weather") === "pct";
 
   const rows = useMemo<WeatherRow[]>(() => {
     return entries.map((e) => {
@@ -126,11 +129,14 @@ function WeatherTable({
   }, [entries, checks, view, tempUnit]);
 
   return (
-    <WeatherMatrix
-      rows={rows}
-      format={view === "rain" ? fmtRainInches : fmtTemp(tempUnit)}
-      digits={view === "rain" ? 2 : tempDigits}
-    />
+    <MatrixFrame page="weather">
+      <WeatherMatrix
+        rows={rows}
+        format={view === "rain" ? fmtRainInches : fmtTemp(tempUnit)}
+        digits={view === "rain" ? 2 : tempDigits}
+        percent={asPercent}
+      />
+    </MatrixFrame>
   );
 }
 

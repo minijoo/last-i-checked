@@ -21,6 +21,16 @@ export function formatTemp(n: number, unit: string): string {
   return `${Math.round(n)}°${unit}`;
 }
 
+/** Percent change from a baseline, given the arithmetic `delta` and the current
+ *  `value` (so the baseline is `value - delta`): `(delta / base) * 100`.
+ *  Returns null when there's no baseline (`delta === null`) or the baseline is
+ *  0 (which would be ±Infinity) — callers render that as "—". */
+export function pctChange(delta: number | null, value: number): number | null {
+  if (delta === null) return null;
+  const base = value - delta;
+  return base === 0 ? null : (delta / base) * 100;
+}
+
 /** °F → °C. Weather is always fetched/stored in °F; Celsius is a display choice. */
 export function fToC(f: number): number {
   return (f - 32) * (5 / 9);

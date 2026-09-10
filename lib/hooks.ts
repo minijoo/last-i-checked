@@ -32,6 +32,25 @@ export function useTempUnit(): "F" | "C" {
   return v === "C" ? "C" : "F";
 }
 
+export type DeltaPage = "stocks" | "weather" | "sportsbook" | "custom";
+export type DeltaMode = "abs" | "pct";
+
+/** Per-page toggle: render matrix deltas as percent change ("pct") vs. the
+ *  absolute change ("abs", default). Persisted under `deltaMode:<page>` so it
+ *  survives revisits; every table on a page shares the one setting. */
+export function useDeltaMode(page: DeltaPage): DeltaMode {
+  const v = useLiveQuery(
+    () => store.getSetting<DeltaMode>(`deltaMode:${page}`),
+    [page],
+  );
+  return v === "pct" ? "pct" : "abs";
+}
+
+/** Flip a page's delta mode and persist it. */
+export function toggleDeltaMode(page: DeltaPage, current: DeltaMode): void {
+  void store.setSetting(`deltaMode:${page}`, current === "pct" ? "abs" : "pct");
+}
+
 export function useTrackedForecasts() {
   return useLiveQuery(() => store.getTrackedForecasts());
 }

@@ -44,6 +44,88 @@ function roundToDigits(v: number, digits: number): number {
   return Math.round(v * f) / f;
 }
 
+function signed(n: number, digits: number, unit = ""): string {
+  const s = n > 0 ? "+" : n < 0 ? "−" : "";
+  return `${s}${Math.abs(n).toFixed(digits)}${unit}`;
+}
+
+function deltaColor(n: number): string {
+  return n > 0 ? "var(--up)" : n < 0 ? "var(--down)" : "var(--muted)";
+}
+
+function deltaArrow(n: number): string {
+  return n > 0 ? "▲" : n < 0 ? "▼" : "▬";
+}
+
+interface TipSeries {
+  dataKey: string;
+  name: string;
+  digits: number;
+  unit: string;
+  color: string;
+}
+
+/**
+ * Shared graph tooltip. Per series: the hovered point's value on one line, then
+ * on the next line the up/down change to the latest (current) check and, in
+ * parentheses, that change as a percentage of the hovered point. `current` maps
+ * each series' dataKey to its most-recent value; `showNames` prefixes the value
+ * line with the series name (multi-series charts only).
+ */
+function ChangeTooltip({
+  active,
+  payload,
+  label,
+  series,
+  current,
+  showNames,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ dataKey?: string | number; value?: number | string }>;
+  label?: number | string;
+  series: TipSeries[];
+  current: Record<string, number>;
+  showNames: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        padding: "6px 10px",
+        fontSize: 12,
+        lineHeight: 1.5,
+        color: "var(--foreground)",
+      }}
+    >
+      <div style={{ color: "var(--muted)" }}>{formatStamp(Number(label))}</div>
+      {payload.map((entry) => {
+        const s = series.find((x) => x.dataKey === String(entry.dataKey));
+        if (!s || entry.value == null) return null;
+        const val = Number(entry.value);
+        const cur = current[s.dataKey] ?? val;
+        const diff = cur - val;
+        const pct = val === 0 ? null : (diff / val) * 100;
+        return (
+          <div key={s.dataKey} style={{ marginTop: 4 }}>
+            <div style={{ color: s.color }}>
+              {showNames ? `${s.name}: ` : ""}
+              {val.toFixed(s.digits)}
+              {s.unit}
+            </div>
+            <div style={{ color: deltaColor(diff) }}>
+              {deltaArrow(diff)} {signed(diff, s.digits, s.unit)}
+              {pct === null ? "" : ` (${signed(pct, 2, "%")})`}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Line graph of every raw check for one item (detail pages plot all points). */
 export function CheckGraph({
   points,
@@ -64,6 +146,7 @@ export function CheckGraph({
   const data = [...points]
     .sort((a, b) => a.t - b.t)
     .map((p) => ({ ...p, v: roundToDigits(p.v, digits) }));
+  const current = { v: data[data.length - 1].v };
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -87,14 +170,21 @@ export function CheckGraph({
             stroke="var(--border)"
           />
           <Tooltip
-            contentStyle={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              color: "var(--foreground)",
-            }}
-            labelFormatter={(t) => formatStamp(Number(t))}
-            formatter={(v) => [`${Number(v).toFixed(digits)}${unit}`, "value"]}
+            content={
+              <ChangeTooltip
+                series={[
+                  {
+                    dataKey: "v",
+                    name: "value",
+                    digits,
+                    unit,
+                    color: "var(--foreground)",
+                  },
+                ]}
+                current={current}
+                showNames={false}
+              />
+            }
           />
           <Line
             type="monotone"
@@ -142,6 +232,8 @@ export function DualCheckGraph({
       a: roundToDigits(p.a, digits),
       b: roundToDigits(p.b, digits),
     }));
+  const last = data[data.length - 1];
+  const current = { a: last.a, b: last.b };
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -165,14 +257,28 @@ export function DualCheckGraph({
             stroke="var(--border)"
           />
           <Tooltip
-            contentStyle={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              color: "var(--foreground)",
-            }}
-            labelFormatter={(t) => formatStamp(Number(t))}
-            formatter={(v, name) => [`${Number(v).toFixed(digits)}${unit}`, name]}
+            content={
+              <ChangeTooltip
+                series={[
+                  {
+                    dataKey: "a",
+                    name: aLabel,
+                    digits,
+                    unit,
+                    color: "var(--day)",
+                  },
+                  {
+                    dataKey: "b",
+                    name: bLabel,
+                    digits,
+                    unit,
+                    color: "var(--night)",
+                  },
+                ]}
+                current={current}
+                showNames
+              />
+            }
           />
           <Legend
             wrapperStyle={{ fontSize: 12, color: "var(--muted)" }}
@@ -243,6 +349,8 @@ export function DualAxisGraph({
       left: roundToDigits(p.left, leftDigits),
       right: roundToDigits(p.right, rightDigits),
     }));
+  const last = data[data.length - 1];
+  const current = { left: last.left, right: last.right };
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -276,17 +384,27 @@ export function DualAxisGraph({
             stroke="var(--border)"
           />
           <Tooltip
-            contentStyle={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              color: "var(--foreground)",
-            }}
-            labelFormatter={(t) => formatStamp(Number(t))}
-            formatter={(v, name) =>
-              name === rightLabel
-                ? [`${Number(v).toFixed(rightDigits)}${rightUnit}`, name]
-                : [`${Number(v).toFixed(leftDigits)}${leftUnit}`, name]
+            content={
+              <ChangeTooltip
+                series={[
+                  {
+                    dataKey: "left",
+                    name: leftLabel,
+                    digits: leftDigits,
+                    unit: leftUnit,
+                    color: "var(--foreground)",
+                  },
+                  {
+                    dataKey: "right",
+                    name: rightLabel,
+                    digits: rightDigits,
+                    unit: rightUnit,
+                    color: "var(--night)",
+                  },
+                ]}
+                current={current}
+                showNames
+              />
             }
           />
           <Legend

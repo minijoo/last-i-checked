@@ -96,7 +96,8 @@ export async function chargedEventOdds(
       error: `Trial limit reached (${access.trialUsed}/${access.trialLimit} credits this month). Add your own Odds API key in Settings to keep going.`,
     };
   }
-  // Route handler (not a Server Action) so the service worker can call it too.
+  // Route handler (not a Server Action) so concurrent section fetches run in
+  // parallel instead of serializing behind Next's action dispatcher.
   const usp = new URLSearchParams({
     sportKey,
     eventId,

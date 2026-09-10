@@ -1,5 +1,6 @@
-// Stock quotes for the Fetch button and autocheck (incl. the service worker,
-// which can't call a Server Action). Keeps ALPACA keys server-side.
+// Bulk stock quotes for the Fetch button. A route handler (not a Server Action)
+// so concurrent fetches don't serialize behind Next's action dispatcher; keeps
+// ALPACA keys server-side.
 
 import { fetchQuotes } from "@/lib/providers/stocks";
 

@@ -1,6 +1,6 @@
-// Event odds (1 credit) for the Sportsbook Fetch button, the add-flow outcome
-// picker, and autocheck (incl. the service worker). `key` (optional) is the
-// user's own Odds API key from Settings; otherwise the shared env key is used.
+// Event odds (1 credit) for the Sportsbook Fetch button and the add-flow outcome
+// picker. `key` (optional) is the user's own Odds API key from Settings;
+// otherwise the shared env key is used.
 
 import { getEventOdds } from "@/lib/providers/oddsapi";
 

@@ -1,8 +1,7 @@
 import type { MetadataRoute } from "next";
 
-// Served at /manifest.webmanifest; Next auto-links it. Making the app installable
-// is a prerequisite for Periodic Background Sync (see docs/autocheck.md, Phase B)
-// and gives it a home-screen icon.
+// Served at /manifest.webmanifest; Next auto-links it. Makes the app installable
+// with a home-screen icon and its own standalone window.
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Last I Checked",

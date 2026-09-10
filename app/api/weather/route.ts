@@ -1,4 +1,4 @@
-// Weather for the Fetch button and autocheck (incl. the service worker).
+// Weather for the Fetch button.
 // GET ?lat=&lon=            → 10-day timeline
 // POST { lat, lon, dates }  → day summaries for dates beyond the timeline window
 // Keeps OPENWEATHER_API_KEY server-side.

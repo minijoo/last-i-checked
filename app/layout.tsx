@@ -2,9 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppNav } from "@/components/AppNav";
-import { AutocheckRunner } from "@/components/AutocheckRunner";
 import { PageSwitcher } from "@/components/PageSwitcher";
-import { ServiceWorker } from "@/components/ServiceWorker";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -47,8 +45,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
         <PageSwitcher />
-        <AutocheckRunner />
-        <ServiceWorker />
       </body>
     </html>
   );

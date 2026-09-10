@@ -1,5 +1,6 @@
 // Client-side orchestration for the "Fetch" buttons: pull current data from the
-// external APIs (via server actions) and append checks through the store.
+// external APIs (via the /api/* route handlers) and append checks through the
+// store.
 
 import { jitterCustom, jitterOdds, jitterValue, nowForCheck } from "./devtime";
 import { calKeyToIso, todayCalendarKeys } from "./format";
@@ -45,21 +46,7 @@ export interface FetchOutcome {
   errors: string[];
 }
 
-/** Autocheck passes `checkedAt` to land a caught-up run in its intended bucket
- *  (see docs/autocheck.md). Manual Fetch buttons pass nothing. */
-export interface FetchOpts {
-  checkedAt?: number;
-}
-
-/** Records a successful fetch of a category so autocheck's slot gate closes.
- *  Written by both autocheck and the manual buttons. */
-async function recordAutocheckFetch(category: string): Promise<void> {
-  const cur =
-    (await store.getSetting<Record<string, number>>("autocheckLastFetch")) ?? {};
-  await store.setSetting("autocheckLastFetch", { ...cur, [category]: Date.now() });
-}
-
-export async function runStockFetch(opts?: FetchOpts): Promise<FetchOutcome> {
+export async function runStockFetch(): Promise<FetchOutcome> {
   const tracked = await store.getTrackedStocks();
   if (tracked.length === 0) return { added: 0, errors: [] };
 
@@ -75,14 +62,13 @@ export async function runStockFetch(opts?: FetchOpts): Promise<FetchOutcome> {
   }
   if (!res.ok) return { added: 0, errors: [res.error] };
 
-  const now = opts?.checkedAt ?? nowForCheck();
+  const now = nowForCheck();
   const checks = res.quotes.map((q) => ({
     checkedAt: now,
     symbol: q.symbol,
     price: jitterValue(q.price),
   }));
   await store.appendStockChecks(checks);
-  if (checks.length > 0) await recordAutocheckFetch("stocks");
 
   const missing = tracked
     .filter((t) => !res.quotes.some((q) => q.symbol === t.symbol))
@@ -92,7 +78,7 @@ export async function runStockFetch(opts?: FetchOpts): Promise<FetchOutcome> {
   return { added: checks.length, errors };
 }
 
-export async function runWeatherFetch(opts?: FetchOpts): Promise<FetchOutcome> {
+export async function runWeatherFetch(): Promise<FetchOutcome> {
   const [home, pins] = await Promise.all([
     store.getHomeLocation(),
     store.getTrackedForecasts(),
@@ -115,7 +101,7 @@ export async function runWeatherFetch(opts?: FetchOpts): Promise<FetchOutcome> {
 
   const today = homeWindow[0];
   const windowEnd = homeWindow[homeWindow.length - 1];
-  const now = opts?.checkedAt ?? nowForCheck();
+  const now = nowForCheck();
   const errors: string[] = [];
   let added = 0;
 
@@ -184,7 +170,6 @@ export async function runWeatherFetch(opts?: FetchOpts): Promise<FetchOutcome> {
     added += rows.length;
   }
 
-  if (added > 0) await recordAutocheckFetch("weather");
   // Collapse repeated identical errors (e.g. same subscription failure per date).
   return { added, errors: [...new Set(errors)] };
 }
@@ -197,9 +182,8 @@ export async function runWeatherFetch(opts?: FetchOpts): Promise<FetchOutcome> {
  */
 export async function runCustomFetch(
   tracked: TrackedCustom,
-  opts?: FetchOpts,
 ): Promise<FetchOutcome> {
-  const now = opts?.checkedAt ?? nowForCheck();
+  const now = nowForCheck();
   let result: CustomScrapeResult;
   try {
     const res = await fetch("/api/custom-check", {
@@ -237,8 +221,6 @@ export async function runCustomFetch(
     status: result.ok ? "ok" : "error",
     errorMessage: result.ok ? undefined : result.error,
   });
-  if (result.ok) await recordAutocheckFetch("custom");
-
   return {
     added: 1,
     errors: result.ok ? [] : [result.error ?? "Fetch failed."],
@@ -253,7 +235,6 @@ export async function runCustomFetch(
  */
 export async function runSportsbookFetch(
   rows: TrackedSportsbook[],
-  opts?: FetchOpts,
 ): Promise<FetchOutcome> {
   if (rows.length === 0) return { added: 0, errors: [] };
   const { sportKey, eventId, region, marketKey } = rows[0];
@@ -263,7 +244,7 @@ export async function runSportsbookFetch(
     return { added: 0, errors: ["Event has started — this section is closed."] };
   }
 
-  const now = opts?.checkedAt ?? nowForCheck();
+  const now = nowForCheck();
   const res = await chargedEventOdds(sportKey, eventId, region, marketKey);
 
   if (!res.ok) {
@@ -271,7 +252,6 @@ export async function runSportsbookFetch(
       await store.appendSportsbookChecks(
         rows.map((r) => unavailableCheck(r, now)),
       );
-      await recordAutocheckFetch("sportsbook");
       return { added: rows.length, errors: [res.error] };
     }
     return { added: 0, errors: [res.error] };
@@ -301,7 +281,6 @@ export async function runSportsbookFetch(
   });
 
   await store.appendSportsbookChecks(checks);
-  await recordAutocheckFetch("sportsbook");
   if (res.remaining) {
     await store.setSetting("oddsRequestsRemaining", res.remaining);
   }

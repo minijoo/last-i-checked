@@ -5,10 +5,8 @@
 // means "still loading".
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { mergeAutocheck } from "./autocheck";
 import { getOddsAccess } from "./sportsbookCredits";
 import { store } from "./store";
-import type { AutocheckCategory } from "./types";
 
 export function useTrackedStocks() {
   return useLiveQuery(() => store.getTrackedStocks());
@@ -94,19 +92,4 @@ export function useSportsbookChecks(trackKey: string) {
  *  writes (Dexie observes the `.get()` reads inside getOddsAccess). */
 export function useSportsbookAccess() {
   return useLiveQuery(() => getOddsAccess());
-}
-
-export function useAutocheckConfig() {
-  return useLiveQuery(async () =>
-    mergeAutocheck(await store.getSetting("autocheck")),
-  );
-}
-
-export function useAutocheckUnseen() {
-  return useLiveQuery(
-    async () =>
-      (await store.getSetting<Partial<Record<AutocheckCategory, number>>>(
-        "autocheckUnseen",
-      )) ?? {},
-  );
 }

@@ -12,8 +12,6 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Bundled service worker (built from sw/index.ts + Dexie by esbuild).
-    "public/sw.js",
   ]),
 ]);
 

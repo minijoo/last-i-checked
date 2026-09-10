@@ -473,15 +473,14 @@ and the text `"$254.32"` next to the user's description, and returns `2`.
 - Sportsbook page is designed (`docs/sportsbook.md`); its remaining open questions —
   empty-response credit charging, MVP-futures key stability, decimal-vs-American
   default, credit-usage gauge, bucket granularity — are tracked there.
-- **Autocheck** (scheduled per-category fetches + change notifications) —
-  `docs/autocheck.md`. **Phases A + B shipped**: A = check-on-open
-  (`components/AutocheckRunner.tsx`, Settings → "Schedule Your Checks", per-tab
-  badge); B = installable PWA + provider route handlers (`app/api/{stocks,weather,
-  sportsbook}`) + a bundled service worker (`sw/index.ts` → `public/sw.js`) whose
-  `periodicsync` handler reuses the same tick core. Phase C (exact-time Web Push,
-  needs the v2 server) is not done. Note: the autocheck fetch path now goes through
-  route handlers, not Server Actions — `lib/actions/*` keep only the interactive
-  calls.
+- **Autocheck** (scheduled background fetches + change notifications) — built,
+  then removed. It undercut the app's premise: a background fetch moves the
+  "since you last checked" baseline on its own, and pads the append-only history
+  with checks the user never asked for. The provider split it introduced stays —
+  `app/api/{stocks,weather,sportsbook}` route handlers with pure fetch/parse in
+  `lib/providers/*`, which `lib/fetchers.ts` calls from the Fetch buttons. The
+  app now fetches only on an explicit Fetch press. Any future "remind me" feature
+  belongs in the v2 server, not a client background job.
 - Pruning / retention for the append-only check stores — deferred; nothing prunes for
   now.
 - Migrating storage to a cloud DB (MongoDB Atlas or similar) — revisit in v2 alongside

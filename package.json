@@ -3,10 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build:sw": "node scripts/build-sw.mjs",
-    "predev": "npm run build:sw",
     "dev": "next dev",
-    "prebuild": "npm run build:sw",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -30,7 +27,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "playwright": "^1.62.1",

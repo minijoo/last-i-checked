@@ -1,8 +1,8 @@
 "use server";
 
-// Interactive Alpaca lookup (the "add stock" flow). Bulk quotes moved to the
-// /api/stocks route handler so the service worker can reach them too — the
-// provider fetch/parse is shared in lib/providers/stocks.ts.
+// Interactive Alpaca lookup (the "add stock" flow). Bulk quotes live in the
+// /api/stocks route handler; the provider fetch/parse is shared in
+// lib/providers/stocks.ts.
 
 import { lookupAsset } from "@/lib/providers/stocks";
 import type { Result, SymbolInfo } from "@/lib/types";

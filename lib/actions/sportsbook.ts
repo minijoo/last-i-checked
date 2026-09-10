@@ -1,9 +1,8 @@
 "use server";
 
 // Interactive Odds API calls for the add-flow drill-down (both 0-credit). The
-// 1-credit getEventOdds moved to the /api/sportsbook route handler so the
-// service worker can reach it; the shared fetch/parse lives in
-// lib/providers/oddsapi.ts. See docs/sportsbook.md.
+// 1-credit getEventOdds lives in the /api/sportsbook route handler; the shared
+// fetch/parse lives in lib/providers/oddsapi.ts. See docs/sportsbook.md.
 
 import {
   listEvents as providerListEvents,

@@ -3,15 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { useAutocheckUnseen } from "@/lib/hooks";
-import { store } from "@/lib/store";
-import type { AutocheckCategory } from "@/lib/types";
 
-const TABS: Array<{ href: string; label: string; cat: AutocheckCategory }> = [
-  { href: "/stocks", label: "Stocks", cat: "stocks" },
-  { href: "/weather", label: "Weather", cat: "weather" },
-  { href: "/sportsbook", label: "Sportsbook", cat: "sportsbook" },
-  { href: "/custom", label: "Custom", cat: "custom" },
+const TABS: Array<{ href: string; label: string }> = [
+  { href: "/stocks", label: "Stocks" },
+  { href: "/weather", label: "Weather" },
+  { href: "/sportsbook", label: "Sportsbook" },
+  { href: "/custom", label: "Custom" },
 ];
 
 /** Highlight fully collapsed to the left — used before we've measured, and on
@@ -21,17 +18,6 @@ const HIDDEN_CLIP = "inset(50% 100% 50% 0 round 999px)";
 function activeIndex(pathname: string): number {
   return TABS.findIndex(
     (t) => pathname === t.href || pathname.startsWith(t.href + "/"),
-  );
-}
-
-/** Small green count of unseen autochecked changes for a tab. Rendered in both
- *  the base list and the (aria-hidden) highlight list so their widths match. */
-function Badge({ n }: { n: number }) {
-  if (n <= 0) return null;
-  return (
-    <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-up px-1 text-[0.65rem] font-bold leading-none text-background">
-      {n > 9 ? "9+" : n}
-    </span>
   );
 }
 
@@ -45,23 +31,11 @@ function Badge({ n }: { n: number }) {
 export function PageSwitcher() {
   const pathname = usePathname();
   const active = activeIndex(pathname);
-  const unseen = useAutocheckUnseen();
 
   const listRef = useRef<HTMLUListElement>(null);
   const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
   const [clip, setClip] = useState(HIDDEN_CLIP);
   const [ready, setReady] = useState(false);
-
-  // Opening a tab clears its "changed while you were away" badge.
-  useEffect(() => {
-    if (!unseen) return;
-    const tab = TABS.find(
-      (t) => pathname === t.href || pathname.startsWith(t.href + "/"),
-    );
-    if (tab && (unseen[tab.cat] ?? 0) > 0) {
-      void store.setSetting("autocheckUnseen", { ...unseen, [tab.cat]: 0 });
-    }
-  }, [pathname, unseen]);
 
   useEffect(() => {
     function measure() {
@@ -88,7 +62,7 @@ export function PageSwitcher() {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", measure);
     };
-  }, [active, unseen]);
+  }, [active]);
 
   return (
     <nav
@@ -110,7 +84,6 @@ export function PageSwitcher() {
                 className="flex items-center rounded-full px-4 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground"
               >
                 {t.label}
-                <Badge n={unseen?.[t.cat] ?? 0} />
               </Link>
             </li>
           ))}
@@ -126,7 +99,6 @@ export function PageSwitcher() {
             <li key={t.href}>
               <span className="flex items-center rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background">
                 {t.label}
-                <Badge n={unseen?.[t.cat] ?? 0} />
               </span>
             </li>
           ))}

@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AddCustomCheckForm } from "@/components/AddCustomCheckForm";
 import { CustomCheckCard } from "@/components/CustomCheckCard";
 import { CustomMatrix, type CustomMatrixRow } from "@/components/CustomMatrix";
+import { Drawer } from "@/components/Drawer";
 import { FetchBar } from "@/components/FetchBar";
 import { MatrixFrame } from "@/components/MatrixFrame";
-import { Card, SectionTitle } from "@/components/ui";
+import { Button, Card, SectionTitle } from "@/components/ui";
 import { toCustomColumns } from "@/lib/customColumns";
 import { runCustomFetch } from "@/lib/fetchers";
 import { formatStamp } from "@/lib/format";
@@ -22,6 +23,7 @@ export default function CustomPage() {
   const checks = useAllCustomChecks();
   const asPercent = useDeltaMode("custom") === "pct";
   const loading = tracked === undefined || checks === undefined;
+  const [addOpen, setAddOpen] = useState(false);
 
   // Text values are kept out of the shared-column matrix entirely — a long
   // string would distort every other row's column width — and get their own
@@ -85,23 +87,28 @@ export default function CustomPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Custom checks</h1>
-        <p className="mt-1 text-sm text-muted">
-          Track any value on any public page by URL and CSS selector. Finding a selector
-          needs a desktop browser&apos;s devtools — running a check works from any
-          device.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Custom checks</h1>
+          <p className="mt-1 text-sm text-muted">
+            Track any value on any public page by URL and CSS selector. Finding a selector
+            needs a desktop browser&apos;s devtools — running a check works from any
+            device.
+          </p>
+        </div>
+        <Button onClick={() => setAddOpen(true)}>Add Custom Check</Button>
       </div>
 
-      <AddCustomCheckForm />
+      <Drawer open={addOpen} onOpenChange={setAddOpen} title="Add Custom Check">
+        <AddCustomCheckForm onAdded={() => setAddOpen(false)} />
+      </Drawer>
 
       {loading ? (
         <p className="text-sm text-muted">Loading…</p>
       ) : (tracked?.length ?? 0) === 0 ? (
         <Card>
           <p className="text-sm text-muted">
-            Nothing tracked yet. Add a name, URL, and CSS selector above.
+            Nothing tracked yet. Add a check to get started.
           </p>
         </Card>
       ) : (

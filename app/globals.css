@@ -83,3 +83,56 @@ body {
     font-size: 16px !important;
   }
 }
+
+/* Add Custom Check drawer (components/Drawer.tsx): slides up from the bottom,
+   backdrop fades in step. Entrance uses @starting-style — the panel's very
+   first paint (right when it mounts, already computing to [data-state="open"])
+   transitions in from these values, no JS "mount closed, then flip" step
+   needed. Exit is a plain transition on an already-mounted element, driven by
+   [data-state] flipping to "closed"; Drawer.tsx keeps it mounted for exactly
+   that transition's duration before removing it, so the close motion always
+   gets to play. Duration/easing live on the state you're moving TOWARD:
+   entering is longer and steeper (an iOS-sheet feel); exiting is shorter and
+   plainer — the user already decided, so get out of the way faster. */
+.drawer-backdrop[data-state="closed"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 260ms ease;
+}
+.drawer-backdrop[data-state="open"] {
+  opacity: 1;
+  transition: opacity 380ms ease;
+  @starting-style {
+    opacity: 0;
+  }
+}
+
+.drawer-panel[data-state="closed"] {
+  transform: translateY(100%);
+  transition: transform 260ms cubic-bezier(0.19, 1, 0.22, 1); /* ease-out-expo */
+}
+.drawer-panel[data-state="open"] {
+  transform: translateY(0);
+  transition: transform 380ms cubic-bezier(0.32, 0.72, 0, 1); /* iOS-sheet ease: steep start, gentle settle */
+  @starting-style {
+    transform: translateY(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-backdrop[data-state="closed"],
+  .drawer-backdrop[data-state="open"] {
+    transition-duration: 150ms;
+  }
+  /* Drop the slide; fade in place instead — comprehension without movement. */
+  .drawer-panel[data-state="closed"] {
+    transform: none;
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+  .drawer-panel[data-state="open"] {
+    transform: none;
+    opacity: 1;
+    transition: opacity 150ms ease;
+  }
+}

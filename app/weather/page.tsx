@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Drawer } from "@/components/Drawer";
 import { FetchBar } from "@/components/FetchBar";
 import { LocationSearch } from "@/components/LocationSearch";
 import { MatrixFrame } from "@/components/MatrixFrame";
@@ -145,6 +146,7 @@ export default function WeatherPage() {
   const pins = useTrackedForecasts();
   const checks = useAllWeatherChecks();
   const [view, setView] = useState<HomeView>("temp");
+  const [pinOpen, setPinOpen] = useState(false);
 
   const loading =
     home === undefined || pins === undefined || checks === undefined;
@@ -209,14 +211,19 @@ export default function WeatherPage() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <SectionTitle>Pinned dates</SectionTitle>
-            <Card>
+            <div className="flex items-center justify-between gap-4">
+              <SectionTitle>Pinned dates</SectionTitle>
+              <Button variant="outline" onClick={() => setPinOpen(true)}>
+                Pin a Date
+              </Button>
+            </div>
+            <Drawer open={pinOpen} onOpenChange={setPinOpen} title="Pin a Date">
               <p className="mb-2 text-sm text-muted">
                 Pin any city + date to track it beyond the {HOME_WINDOW_DAYS}-day
                 home window.
               </p>
-              <PinForm />
-            </Card>
+              <PinForm onPinned={() => setPinOpen(false)} />
+            </Drawer>
             {(pins ?? []).length === 0 ? (
               <p className="text-sm text-muted">Nothing pinned.</p>
             ) : (
@@ -266,7 +273,7 @@ export default function WeatherPage() {
   );
 }
 
-function PinForm() {
+function PinForm({ onPinned }: { onPinned?: () => void } = {}) {
   const [loc, setLoc] = useState<{
     name: string;
     latLong: [number, number];
@@ -283,6 +290,7 @@ function PinForm() {
     setMsg(`Pinned ${loc.name} on ${date}.`);
     setDate("");
     setLoc(null);
+    onPinned?.();
   }
 
   const dateNote = date ? horizonNote(date.replace(/-/g, "")) : undefined;
@@ -304,19 +312,22 @@ function PinForm() {
           onSelect={(g) => setLoc({ name: g.name, latLong: g.latLong })}
         />
       )}
-      <div className="flex gap-2">
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm"
-        />
-        <Button variant="outline" onClick={add} disabled={!loc || !date}>
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+        className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm"
+      />
+      {dateNote && <p className="text-xs text-muted">{dateNote}</p>}
+      {msg && <p className="text-xs text-up">{msg}</p>}
+
+      {/* The main action — centered and filled, on its own row, so it stands
+       *  out (same treatment as Add Custom Check / Track selected). */}
+      <div className="mt-2 flex justify-center border-t border-border pt-3">
+        <Button onClick={add} className="px-8" disabled={!loc || !date}>
           Pin
         </Button>
       </div>
-      {dateNote && <p className="text-xs text-muted">{dateNote}</p>}
-      {msg && <p className="text-xs text-up">{msg}</p>}
     </div>
   );
 }

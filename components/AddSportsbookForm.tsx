@@ -21,7 +21,7 @@ import type {
   TrackedSportsbook,
 } from "@/lib/types";
 import { Combobox, type ComboOption } from "./Combobox";
-import { Button, Card, SectionTitle } from "./ui";
+import { Button } from "./ui";
 
 function dayLabel(iso: string): string {
   const d = new Date(iso);
@@ -291,8 +291,7 @@ export function AddSportsbookForm() {
   }, [odds, marketKey]);
 
   return (
-    <Card className="flex flex-col gap-3">
-      <SectionTitle>Track a sportsbook number</SectionTitle>
+    <div className="flex flex-col gap-3">
       <p className="text-xs text-muted">
         Saw a line at a sportsbook? Find it here: pick the sport, game, and
         market, then choose which numbers to track.
@@ -411,17 +410,21 @@ export function AddSportsbookForm() {
             ))}
           </div>
 
-          <Button
-            onClick={trackSelected}
-            disabled={selected.size === 0}
-            className="self-start"
-          >
-            Track {selected.size > 0 ? `${selected.size} ` : ""}selected
-          </Button>
+          {/* The main action — centered and filled, on its own row, so it
+           *  stands out (same treatment as Add Custom Check / Pin a Date). */}
+          <div className="mt-2 flex justify-center border-t border-border pt-3">
+            <Button
+              onClick={trackSelected}
+              className="px-8"
+              disabled={selected.size === 0}
+            >
+              Track {selected.size > 0 ? `${selected.size} ` : ""}selected
+            </Button>
+          </div>
         </div>
       )}
 
       {savedMsg && <p className="text-xs text-up">{savedMsg}</p>}
-    </Card>
+    </div>
   );
 }

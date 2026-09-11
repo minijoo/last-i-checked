@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AddSportsbookForm } from "@/components/AddSportsbookForm";
+import { Drawer } from "@/components/Drawer";
 import { FetchBar } from "@/components/FetchBar";
 import { MatrixFrame } from "@/components/MatrixFrame";
 import {
   SportsbookMatrix,
   type SportsbookRow,
 } from "@/components/SportsbookMatrix";
-import { Card, SectionTitle } from "@/components/ui";
+import { Button, Card, SectionTitle } from "@/components/ui";
 import { runSportsbookFetch } from "@/lib/fetchers";
 import { formatStamp } from "@/lib/format";
 import {
@@ -38,6 +39,7 @@ export default function SportsbookPage() {
   const access = useSportsbookAccess();
   const asPercent = useDeltaMode("sportsbook") === "pct";
   const loading = tracked === undefined || checks === undefined;
+  const [addOpen, setAddOpen] = useState(false);
 
   const groups = useMemo(() => {
     const byKey = new Map<string, TrackedSportsbook[]>();
@@ -82,38 +84,48 @@ export default function SportsbookPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Sportsbook</h1>
-        <p className="mt-1 text-sm text-muted">
-          How a line you pinned has moved since you last checked — never against
-          another book, only against your own history.
-        </p>
-        {access &&
-          (access.userKey ? (
-            <p className="mt-1 text-xs text-muted">Using your own Odds API key.</p>
-          ) : (
-            <p className="mt-1 text-xs text-muted">
-              Trial credits:{" "}
-              <span className="text-foreground">
-                {access.trialUsed} of {access.trialLimit}
-              </span>{" "}
-              used this month.{" "}
-              <Link href="/settings" className="underline hover:text-foreground">
-                Add your own key in Settings
-              </Link>{" "}
-              for more.
-            </p>
-          ))}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Sportsbook</h1>
+          <p className="mt-1 text-sm text-muted">
+            How a line you pinned has moved since you last checked — never against
+            another book, only against your own history.
+          </p>
+          {access &&
+            (access.userKey ? (
+              <p className="mt-1 text-xs text-muted">Using your own Odds API key.</p>
+            ) : (
+              <p className="mt-1 text-xs text-muted">
+                Trial credits:{" "}
+                <span className="text-foreground">
+                  {access.trialUsed} of {access.trialLimit}
+                </span>{" "}
+                used this month.{" "}
+                <Link href="/settings" className="underline hover:text-foreground">
+                  Add your own key in Settings
+                </Link>{" "}
+                for more.
+              </p>
+            ))}
+        </div>
+        <Button onClick={() => setAddOpen(true)}>Track a Sportsbook Number</Button>
       </div>
 
-      <AddSportsbookForm />
+      <Drawer
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        title="Track a Sportsbook Number"
+        size="full"
+      >
+        <AddSportsbookForm />
+      </Drawer>
 
       {loading ? (
         <p className="text-sm text-muted">Loading…</p>
       ) : sections.length === 0 ? (
         <Card>
           <p className="text-sm text-muted">
-            Nothing tracked yet. Use the form above to pin a number.
+            Nothing tracked yet. Track a number to get started.
           </p>
         </Card>
       ) : (

@@ -1,10 +1,19 @@
 import type { Metadata } from "next";
+import { ChangelogRow } from "@/components/ChangelogRow";
+import { SectionTitle } from "@/components/ui";
+import { getChangelog } from "@/lib/changelog";
 
 export const metadata: Metadata = {
   title: "About · Last I Checked",
 };
 
-export default function AboutPage() {
+// The changelog reads GitHub live on every request (see lib/changelog.ts's
+// `cache: "no-store"` fetches) rather than a cached/static build of the page.
+export const dynamic = "force-dynamic";
+
+export default async function AboutPage() {
+  const changelog = await getChangelog();
+
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-xl font-semibold tracking-tight">About</h1>
@@ -40,6 +49,21 @@ export default function AboutPage() {
         </a>
         .
       </p>
+
+      <div className="flex flex-col gap-2">
+        <SectionTitle>Changelog</SectionTitle>
+        {changelog.length === 0 ? (
+          <p className="text-sm text-muted">
+            Couldn&apos;t load the changelog from GitHub right now.
+          </p>
+        ) : (
+          <div className="flex flex-col">
+            {changelog.map((entry) => (
+              <ChangelogRow key={entry.sha} entry={entry} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -71,6 +71,35 @@ export function formatDay(ts: number): string {
 }
 
 /**
+ * "2 hours ago" / "yesterday" / "3 days ago" / "Sep 1, 2026" — relative for
+ * anything within the last 7 days (with sub-day granularity for today),
+ * absolute once it's older than that. Used for the About page changelog.
+ */
+export function formatRelativeDate(ts: number, now: number = Date.now()): string {
+  const startOfDay = (t: number) => {
+    const d = new Date(t);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+  const dayDiff = Math.round((startOfDay(now) - startOfDay(ts)) / 86_400_000);
+
+  if (dayDiff <= 0) {
+    const minutes = Math.round((now - ts) / 60_000);
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+    const hours = Math.round(minutes / 60);
+    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+  if (dayDiff === 1) return "yesterday";
+  if (dayDiff <= 7) return `${dayDiff} days ago`;
+  return new Date(ts).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/**
  * Relative day header for a bucket key ("YYYY-MM-DD", optionally with an
  * "-AM"/"-PM" half that we ignore): "today", "1 day ago", "3 days ago".
  */

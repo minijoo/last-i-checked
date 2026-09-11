@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { type CustomColumn, CUSTOM_DELTA_DIGITS } from "@/lib/customColumns";
 import { pctChange } from "@/lib/format";
 import { unionAxis } from "@/lib/matrix";
-import { rowHeadClass, Shell } from "./CheckMatrix";
+import { rowHeadClassStatic, Shell } from "./CheckMatrix";
 import { Delta } from "./Delta";
 
 export interface CustomMatrixRow {
@@ -29,12 +29,12 @@ export function CustomMatrix({
     maxCols,
   );
   return (
-    <Shell axis={axis}>
+    <Shell axis={axis} stickyLabels={false}>
       {rows.map((r) => {
         const byKey = new Map(r.columns.map((c) => [c.key, c]));
         return (
           <tr key={r.id} className="border-t border-border">
-            <th className={rowHeadClass}>{r.label}</th>
+            <th className={rowHeadClassStatic}>{r.label}</th>
             {axis.map((c) => {
               const cell = byKey.get(c.key);
               if (!cell) {

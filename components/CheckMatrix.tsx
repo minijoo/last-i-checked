@@ -13,13 +13,17 @@ export interface NumRow {
 const cellBlank = <span className="text-muted">·</span>;
 
 /** Shared table shell: a two-row date axis (relative day merged over absolute
- *  dates) plus the sticky row-label column. Also used by CustomMatrix. */
+ *  dates) plus the row-label column. Also used by CustomMatrix. `stickyLabels`
+ *  (default true) pins that first column while the rest scrolls horizontally;
+ *  pass false to let it scroll with the table. */
 export function Shell({
   axis,
   children,
+  stickyLabels = true,
 }: {
   axis: AxisCol[];
   children: ReactNode;
+  stickyLabels?: boolean;
 }) {
   const spans = relDaySpans(axis);
   return (
@@ -29,7 +33,9 @@ export function Shell({
           <tr className="text-xs text-muted">
             <th
               rowSpan={3}
-              className="sticky left-0 z-10 bg-surface px-2 py-1.5 text-left font-medium"
+              className={`${
+                stickyLabels ? "sticky left-0 z-10 " : ""
+              }bg-surface px-2 py-1.5 text-left font-medium`}
             />
             {spans.map((g) => (
               <th
@@ -68,8 +74,15 @@ export function Shell({
   );
 }
 
-export const rowHeadClass =
-  "sticky left-0 z-10 bg-surface px-2 py-2 text-left align-top font-medium whitespace-nowrap";
+const rowHeadBase =
+  "bg-surface px-2 py-2 text-left align-top font-medium whitespace-nowrap";
+
+/** Row-label cell, pinned while the table scrolls horizontally. */
+export const rowHeadClass = `sticky left-0 z-10 ${rowHeadBase}`;
+
+/** Row-label cell that scrolls with the rest of the table (Shell
+ *  `stickyLabels={false}`). */
+export const rowHeadClassStatic = rowHeadBase;
 
 /** Consolidated numeric table: shared date axis, one row per item.
  *  With `percent`, each delta is shown as a percent change from the previous

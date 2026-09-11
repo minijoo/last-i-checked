@@ -45,7 +45,7 @@ export function SportsbookMatrix({
           <tr className="text-xs text-muted">
             <th
               rowSpan={3}
-              className="sticky left-0 z-10 w-px bg-surface px-2 py-1.5 text-left font-medium"
+              className="w-px bg-surface px-2 py-1.5 text-left font-medium"
             />
             {hasPoint && <th rowSpan={3} className="w-px px-1 py-1.5" />}
             {spans.map((g) => (
@@ -90,7 +90,7 @@ export function SportsbookMatrix({
                 {li === 0 && (
                   <th
                     rowSpan={lanes.length}
-                    className="sticky left-0 z-10 w-px bg-surface px-2 py-2 text-left align-top font-medium whitespace-nowrap"
+                    className="w-px bg-surface px-2 py-2 text-left align-top font-medium whitespace-nowrap"
                   >
                     {r.label}
                   </th>

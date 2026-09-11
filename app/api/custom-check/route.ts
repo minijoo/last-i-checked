@@ -1,10 +1,13 @@
 // Scrapes one custom check: loads `url` in a headless browser, waits for
 // `selector` to appear (this doubles as the "wait for initial JS" step — no
-// separate networkidle wait needed), and reads its text. A Route Handler
-// rather than a Server Action: Next.js dispatches Server Actions one at a
-// time per client, which would serialize concurrent per-card fetches; a
-// plain fetch() from the client runs independently. See docs/plan.md
-// "Custom URL Checks — Technical Approach".
+// separate networkidle wait needed), and reads its text. Always returns the
+// raw text as-is — number extraction is a separate, client-side step (see
+// lib/customExtract.ts) run against that text, both for the add form's "Try
+// Extract" preview and for every later fetch of a tracked number check. A
+// Route Handler rather than a Server Action: Next.js dispatches Server
+// Actions one at a time per client, which would serialize concurrent
+// per-card fetches; a plain fetch() from the client runs independently. See
+// docs/plan.md "Custom URL Checks — Technical Approach".
 
 import { gotoResilient, launchBrowser, openScrapePage } from "@/lib/launchBrowser";
 import { assertPublicUrl } from "@/lib/ssrfGuard";
@@ -19,25 +22,10 @@ const SELECTOR_TIMEOUT_MS = 15_000;
 interface RequestBody {
   url?: string;
   selector?: string;
-  valueType?: "number" | "text";
-}
-
-function parseValue(
-  rawText: string,
-  valueType: "number" | "text",
-): { value: number | string | null; error?: string } {
-  const trimmed = rawText.trim();
-  if (valueType === "text") return { value: trimmed };
-  const cleaned = trimmed.replace(/[^0-9.-]/g, "");
-  const n = parseFloat(cleaned);
-  if (!Number.isFinite(n)) {
-    return { value: null, error: `Couldn't parse a number from "${trimmed}".` };
-  }
-  return { value: n };
 }
 
 function fail(error: string, rawText = ""): Response {
-  const body: CustomScrapeResult = { ok: false, rawText, value: null, error };
+  const body: CustomScrapeResult = { ok: false, rawText, error };
   return Response.json(body);
 }
 
@@ -49,9 +37,9 @@ export async function POST(request: Request): Promise<Response> {
     return fail("Invalid request body.");
   }
 
-  const { url, selector, valueType } = body;
-  if (!url || !selector || (valueType !== "number" && valueType !== "text")) {
-    return fail("Missing url, selector, or valueType.");
+  const { url, selector } = body;
+  if (!url || !selector) {
+    return fail("Missing url or selector.");
   }
 
   const guard = await assertPublicUrl(url);
@@ -72,9 +60,7 @@ export async function POST(request: Request): Promise<Response> {
       await gotoResilient(page, url, NAV_TIMEOUT_MS);
       const el = await page.waitForSelector(selector, { timeout: SELECTOR_TIMEOUT_MS });
       const rawText = (await el.textContent()) ?? "";
-      const parsed = parseValue(rawText, valueType);
-      if (parsed.error) return fail(parsed.error, rawText);
-      const result: CustomScrapeResult = { ok: true, rawText, value: parsed.value };
+      const result: CustomScrapeResult = { ok: true, rawText };
       return Response.json(result);
     } finally {
       await page.close();

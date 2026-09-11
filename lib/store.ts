@@ -208,15 +208,22 @@ class LocalStore implements Store {
   async addTrackedCustom(input: Omit<TrackedCustom, "addedAt">): Promise<void> {
     const name = input.name.trim();
     if (!name || !input.url.trim() || !input.selector.trim()) return;
-    // put(), not add(): re-adding a name the user previously untracked is
-    // intentional (same convention as addTrackedStock) — history resurfaces.
-    await getDb().trackedCustoms.put({
+    const row: TrackedCustom = {
       name,
       url: input.url.trim(),
       selector: input.selector.trim(),
       valueType: input.valueType,
       addedAt: Date.now(),
-    });
+    };
+    if (input.valueType === "number" && input.extractMethod) {
+      row.extractMethod = input.extractMethod;
+      if (input.extractMethod === "regex" && input.extractRegex) {
+        row.extractRegex = input.extractRegex;
+      }
+    }
+    // put(), not add(): re-adding a name the user previously untracked is
+    // intentional (same convention as addTrackedStock) — history resurfaces.
+    await getDb().trackedCustoms.put(row);
   }
 
   async removeTrackedCustom(name: string): Promise<void> {

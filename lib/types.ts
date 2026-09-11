@@ -1,6 +1,8 @@
 // Record shapes for the IndexedDB stores. See docs/schema.md for rationale.
 // db.ts is the source of truth for stores/indexes.
 
+import type { NumberExtractMethod } from "./customExtract";
+
 /** One row per fetch, per symbol. Append-only. */
 export interface StockCheck {
   id?: number; // auto-increment PK (absent until persisted)
@@ -51,6 +53,11 @@ export interface TrackedCustom {
   url: string;
   selector: string; // CSS selector for the value's location on the page
   valueType: "number" | "text";
+  // Only meaningful (and only set) when valueType is "number": how the raw
+  // scraped text is turned into a number, chosen in the add form's "Try
+  // Extract" step and re-applied on every later fetch. See lib/customExtract.ts.
+  extractMethod?: NumberExtractMethod;
+  extractRegex?: string; // only set when extractMethod is "regex"
   addedAt: number; // epoch ms
 }
 
@@ -62,17 +69,20 @@ export interface CustomCheck {
   url: string; // snapshot of TrackedCustom.url at fetch time
   selector: string; // snapshot of TrackedCustom.selector at fetch time
   valueType: "number" | "text"; // snapshot of TrackedCustom.valueType at fetch time
+  extractMethod?: NumberExtractMethod; // snapshot of TrackedCustom.extractMethod
+  extractRegex?: string; // snapshot of TrackedCustom.extractRegex
   rawText: string; // exact textContent read from the matched element
-  value: number | string | null; // parsed per valueType; null when status is "error"
+  value: number | string | null; // extracted per valueType; null when status is "error"
   status: "ok" | "error";
   errorMessage?: string; // present when status is "error"
 }
 
-/** Result of one scrape, returned by the /api/custom-check route handler. */
+/** Result of one scrape, returned by the /api/custom-check route handler.
+ *  Always the raw text found at the selector — the route never parses a
+ *  number; that's lib/customExtract.ts's job, run client-side against rawText. */
 export interface CustomScrapeResult {
   ok: boolean;
   rawText: string;
-  value: number | string | null;
   error?: string;
 }
 

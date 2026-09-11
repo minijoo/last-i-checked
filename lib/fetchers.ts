@@ -2,6 +2,7 @@
 // external APIs (via the /api/* route handlers) and append checks through the
 // store.
 
+import { extractNumber } from "./customExtract";
 import { jitterCustom, jitterOdds, jitterValue, nowForCheck } from "./devtime";
 import { calKeyToIso, todayCalendarKeys } from "./format";
 import { makeTrackKey } from "./sportsbook";
@@ -184,31 +185,44 @@ export async function runCustomFetch(
   tracked: TrackedCustom,
 ): Promise<FetchOutcome> {
   const now = nowForCheck();
-  let result: CustomScrapeResult;
+  let scrape: CustomScrapeResult;
   try {
     const res = await fetch("/api/custom-check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url: tracked.url,
-        selector: tracked.selector,
-        valueType: tracked.valueType,
-      }),
+      body: JSON.stringify({ url: tracked.url, selector: tracked.selector }),
     });
-    result = await res.json();
+    scrape = await res.json();
   } catch (e) {
-    result = {
+    scrape = {
       ok: false,
       rawText: "",
-      value: null,
       error: e instanceof Error ? e.message : "Network error reaching the fetch service.",
     };
   }
 
-  const value =
-    result.ok && typeof result.value === "number"
-      ? jitterCustom(result.value)
-      : result.value;
+  // The route only ever returns text; turning it into a number (per the
+  // check's chosen extraction rule) happens here, the same way it happened
+  // in the add form's "Try Extract" preview — so a check's rule stays applied
+  // consistently across its whole history.
+  let value: number | string | null = null;
+  let errorMessage: string | undefined;
+  if (!scrape.ok) {
+    errorMessage = scrape.error ?? "Fetch failed.";
+  } else if (tracked.valueType === "text") {
+    value = scrape.rawText.trim();
+  } else {
+    const extracted = extractNumber(
+      scrape.rawText,
+      tracked.extractMethod ?? "asis",
+      tracked.extractRegex,
+    );
+    if (extracted.value === null) {
+      errorMessage = extracted.error ?? "Couldn't extract a number.";
+    } else {
+      value = jitterCustom(extracted.value);
+    }
+  }
 
   await store.appendCustomCheck({
     checkedAt: now,
@@ -216,14 +230,16 @@ export async function runCustomFetch(
     url: tracked.url,
     selector: tracked.selector,
     valueType: tracked.valueType,
-    rawText: result.rawText,
+    extractMethod: tracked.valueType === "number" ? tracked.extractMethod : undefined,
+    extractRegex: tracked.valueType === "number" ? tracked.extractRegex : undefined,
+    rawText: scrape.rawText,
     value,
-    status: result.ok ? "ok" : "error",
-    errorMessage: result.ok ? undefined : result.error,
+    status: errorMessage ? "error" : "ok",
+    errorMessage,
   });
   return {
     added: 1,
-    errors: result.ok ? [] : [result.error ?? "Fetch failed."],
+    errors: errorMessage ? [errorMessage] : [],
   };
 }
 

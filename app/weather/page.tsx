@@ -18,12 +18,21 @@ import {
   useAllWeatherChecks,
   useDeltaMode,
   useHomeLocation,
+  useRainUnit,
   useTempUnit,
+  useWindUnit,
   useTrackedForecasts,
 } from "@/lib/hooks";
 import { store } from "@/lib/store";
 import type { WeatherCheck } from "@/lib/types";
-import { fmtRainInches, fmtTemp, fmtWindMph, numColumnsFor } from "@/lib/weather-view";
+import {
+  fmtRain,
+  fmtTemp,
+  fmtWind,
+  numColumnsFor,
+  rainDigits,
+  WIND_DIGITS,
+} from "@/lib/weather-view";
 
 /** Home-table views. "temp" folds day + night into one table as AM/PM lanes. */
 const HOME_VIEWS = { temp: "Temp", rain: "Rain/Wind" } as const;
@@ -68,6 +77,8 @@ function WeatherTable({
   view: HomeView;
 }) {
   const tempUnit = useTempUnit();
+  const rainUnit = useRainUnit();
+  const windUnit = useWindUnit();
   const tempDigits = tempUnit === "C" ? 1 : 0;
   const asPercent = useDeltaMode("weather") === "pct";
 
@@ -83,9 +94,9 @@ function WeatherTable({
               {
                 key: "rain",
                 label: "Rain",
-                columns: numColumnsFor(subset, "rain"),
-                format: fmtRainInches,
-                digits: 2,
+                columns: numColumnsFor(subset, "rain", { rain: rainUnit }),
+                format: fmtRain(rainUnit),
+                digits: rainDigits(rainUnit),
               },
               {
                 key: "wind",
@@ -96,21 +107,21 @@ function WeatherTable({
                     Speed
                   </>
                 ),
-                columns: numColumnsFor(subset, "wind"),
-                format: fmtWindMph,
-                digits: 0,
+                columns: numColumnsFor(subset, "wind", { wind: windUnit }),
+                format: fmtWind(windUnit),
+                digits: WIND_DIGITS,
               },
             ]
           : [
               {
                 key: "day",
                 label: "AM",
-                columns: numColumnsFor(subset, "day", tempUnit),
+                columns: numColumnsFor(subset, "day", { temp: tempUnit }),
               },
               {
                 key: "night",
                 label: "PM",
-                columns: numColumnsFor(subset, "night", tempUnit),
+                columns: numColumnsFor(subset, "night", { temp: tempUnit }),
               },
             ];
       return {
@@ -127,14 +138,14 @@ function WeatherTable({
         lanes,
       };
     });
-  }, [entries, checks, view, tempUnit]);
+  }, [entries, checks, view, tempUnit, rainUnit, windUnit]);
 
   return (
     <MatrixFrame page="weather">
       <WeatherMatrix
         rows={rows}
-        format={view === "rain" ? fmtRainInches : fmtTemp(tempUnit)}
-        digits={view === "rain" ? 2 : tempDigits}
+        format={view === "rain" ? fmtRain(rainUnit) : fmtTemp(tempUnit)}
+        digits={view === "rain" ? rainDigits(rainUnit) : tempDigits}
         percent={asPercent}
       />
     </MatrixFrame>

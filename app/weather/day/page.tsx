@@ -8,15 +8,21 @@ import { DeltaColumns } from "@/components/DeltaColumns";
 import { FetchBar } from "@/components/FetchBar";
 import { Card, SectionTitle } from "@/components/ui";
 import { runWeatherFetch } from "@/lib/fetchers";
-import { fToC, formatStamp, mmToInches, parseCalendarKey } from "@/lib/format";
-import { useTempUnit, useWeatherChecks } from "@/lib/hooks";
+import { fToC, formatStamp, parseCalendarKey } from "@/lib/format";
+import { useRainUnit, useTempUnit, useWeatherChecks, useWindUnit } from "@/lib/hooks";
 import type { WeatherCheck } from "@/lib/types";
 import {
-  fmtRainInches,
+  fmtRain,
   fmtTemp,
-  fmtWindMph,
+  fmtWind,
   numColumnsFor,
+  rainDigits,
+  rainValue,
+  type RainUnit,
   type TempUnit,
+  windValue,
+  WIND_DIGITS,
+  type WindUnit,
 } from "@/lib/weather-view";
 
 export default function WeatherDayPage() {
@@ -33,6 +39,8 @@ function DayView() {
   const calKey = sp.get("date") ?? "";
   const checks = useWeatherChecks(location, calKey);
   const unit = useTempUnit();
+  const rainUnit = useRainUnit();
+  const windUnit = useWindUnit();
 
   const dateLabel = calKey
     ? parseCalendarKey(calKey).toLocaleDateString(undefined, {
@@ -80,8 +88,13 @@ function DayView() {
       ) : (
         <>
           <TempMetric checks={checks} unit={unit} />
-          <RainWindMetric checks={checks} />
-          <HistoryTable checks={checks} unit={unit} />
+          <RainWindMetric checks={checks} rain={rainUnit} wind={windUnit} />
+          <HistoryTable
+            checks={checks}
+            unit={unit}
+            rain={rainUnit}
+            wind={windUnit}
+          />
         </>
       )}
     </div>
@@ -118,7 +131,7 @@ function TempMetric({
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted">Day</span>
           <DeltaColumns
-            columns={numColumnsFor(checks, "day", unit)}
+            columns={numColumnsFor(checks, "day", { temp: unit })}
             format={fmtTemp(unit)}
             digits={digits}
           />
@@ -126,7 +139,7 @@ function TempMetric({
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted">Night</span>
           <DeltaColumns
-            columns={numColumnsFor(checks, "night", unit)}
+            columns={numColumnsFor(checks, "night", { temp: unit })}
             format={fmtTemp(unit)}
             digits={digits}
           />
@@ -136,7 +149,15 @@ function TempMetric({
   );
 }
 
-function RainWindMetric({ checks }: { checks: WeatherCheck[] }) {
+function RainWindMetric({
+  checks,
+  rain,
+  wind,
+}: {
+  checks: WeatherCheck[];
+  rain: RainUnit;
+  wind: WindUnit;
+}) {
   return (
     <section className="flex flex-col gap-3">
       <SectionTitle>Rain &amp; wind</SectionTitle>
@@ -144,15 +165,15 @@ function RainWindMetric({ checks }: { checks: WeatherCheck[] }) {
         <DualAxisGraph
           points={checks.map((c) => ({
             t: c.checkedAt,
-            left: mmToInches(c.rainAmt),
-            right: c.windSpeed,
+            left: rainValue(c.rainAmt, rain),
+            right: windValue(c.windSpeed, wind),
           }))}
           leftLabel="Rain"
           rightLabel="Wind Speed"
-          leftUnit={'"'}
-          rightUnit=" mph"
-          leftDigits={2}
-          rightDigits={0}
+          leftUnit={rain === "mm" ? " mm" : '"'}
+          rightUnit={wind === "ms" ? " m/s" : " mph"}
+          leftDigits={rainDigits(rain)}
+          rightDigits={WIND_DIGITS}
         />
       </Card>
       <SectionTitle>By half-day, latest</SectionTitle>
@@ -160,17 +181,17 @@ function RainWindMetric({ checks }: { checks: WeatherCheck[] }) {
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted">Rain</span>
           <DeltaColumns
-            columns={numColumnsFor(checks, "rain")}
-            format={fmtRainInches}
-            digits={2}
+            columns={numColumnsFor(checks, "rain", { rain })}
+            format={fmtRain(rain)}
+            digits={rainDigits(rain)}
           />
         </div>
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted">Wind Speed</span>
           <DeltaColumns
-            columns={numColumnsFor(checks, "wind")}
-            format={fmtWindMph}
-            digits={0}
+            columns={numColumnsFor(checks, "wind", { wind })}
+            format={fmtWind(wind)}
+            digits={WIND_DIGITS}
           />
         </div>
       </div>
@@ -181,9 +202,13 @@ function RainWindMetric({ checks }: { checks: WeatherCheck[] }) {
 function HistoryTable({
   checks,
   unit,
+  rain,
+  wind,
 }: {
   checks: WeatherCheck[];
   unit: TempUnit;
+  rain: RainUnit;
+  wind: WindUnit;
 }) {
   const conv = unit === "C" ? fToC : (v: number) => v;
   const t = (v: number) => fmtTemp(unit)(conv(v));
@@ -216,10 +241,10 @@ function HistoryTable({
                   {t(c.tempNight)}
                 </td>
                 <td className="whitespace-nowrap py-1 pr-4 font-mono tabular-nums">
-                  {fmtRainInches(mmToInches(c.rainAmt))}
+                  {fmtRain(rain)(rainValue(c.rainAmt, rain))}
                 </td>
                 <td className="whitespace-nowrap py-1 font-mono tabular-nums">
-                  {fmtWindMph(c.windSpeed)}
+                  {fmtWind(wind)(windValue(c.windSpeed, wind))}
                 </td>
               </tr>
             ))}

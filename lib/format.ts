@@ -54,6 +54,11 @@ export function fToC(f: number): number {
   return (f - 32) * (5 / 9);
 }
 
+/** Weather wind speed is stored in mph; m/s is a display choice. */
+export function mphToMs(mph: number): number {
+  return mph * 0.44704;
+}
+
 /** OpenWeather returns precipitation in mm; the app shows inches. */
 export function mmToInches(mm: number): number {
   return mm / 25.4;

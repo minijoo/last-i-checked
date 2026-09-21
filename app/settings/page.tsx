@@ -5,7 +5,13 @@ import { DevPanel } from "@/components/DevPanel";
 import { LocationSearch } from "@/components/LocationSearch";
 import { Button, Card, Input, SectionTitle } from "@/components/ui";
 import { IS_DEV } from "@/lib/devtime";
-import { useHomeLocation, useSportsbookAccess, useTempUnit } from "@/lib/hooks";
+import {
+  useHomeLocation,
+  useRainUnit,
+  useSportsbookAccess,
+  useTempUnit,
+  useWindUnit,
+} from "@/lib/hooks";
 import { setUserOddsKey } from "@/lib/sportsbookCredits";
 import { store } from "@/lib/store";
 import type { BackupBlob } from "@/lib/types";
@@ -29,6 +35,8 @@ export default function SettingsPage() {
 function WeatherSection() {
   const home = useHomeLocation();
   const tempUnit = useTempUnit();
+  const rainUnit = useRainUnit();
+  const windUnit = useWindUnit();
 
   return (
     <section className="flex flex-col gap-2">
@@ -59,27 +67,74 @@ function WeatherSection() {
           )}
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted">Temperature unit</span>
-          <div className="flex gap-1">
-            {(["F", "C"] as const).map((u) => (
-              <Button
-                key={u}
-                variant={tempUnit === u ? "solid" : "outline"}
-                onClick={() => store.setSetting("tempUnit", u)}
-              >
-                °{u}
-              </Button>
-            ))}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-x-8 gap-y-4">
+            <UnitToggle
+              label="Temperature unit"
+              value={tempUnit}
+              options={[
+                { value: "F", label: "°F" },
+                { value: "C", label: "°C" },
+              ]}
+              onPick={(v) => store.setSetting("tempUnit", v)}
+            />
+            <UnitToggle
+              label="Rain unit"
+              value={rainUnit}
+              options={[
+                { value: "in", label: "in" },
+                { value: "mm", label: "mm" },
+              ]}
+              onPick={(v) => store.setSetting("rainUnit", v)}
+            />
+            <UnitToggle
+              label="Wind speed unit"
+              value={windUnit}
+              options={[
+                { value: "mph", label: "mph" },
+                { value: "ms", label: "m/s" },
+              ]}
+              onPick={(v) => store.setSetting("windUnit", v)}
+            />
           </div>
           <p className="text-xs text-muted">
-            Display only — forecasts are always fetched and stored in °F. In °C,
-            temperature values and deltas show to one decimal place, and the
-            difference is calculated after converting.
+            Display only — forecasts are always fetched and stored in °F, mm and
+            mph. Temperature in °C and rain in mm show one decimal place (rain in
+            inches shows two); wind speed is a whole number in either unit. Deltas
+            are calculated after converting.
           </p>
         </div>
       </Card>
     </section>
+  );
+}
+
+function UnitToggle<T extends string>({
+  label,
+  value,
+  options,
+  onPick,
+}: {
+  label: string;
+  value: T;
+  options: Array<{ value: T; label: string }>;
+  onPick: (v: T) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs text-muted">{label}</span>
+      <div className="flex gap-1">
+        {options.map((o) => (
+          <Button
+            key={o.value}
+            variant={value === o.value ? "solid" : "outline"}
+            onClick={() => onPick(o.value)}
+          >
+            {o.label}
+          </Button>
+        ))}
+      </div>
+    </div>
   );
 }
 

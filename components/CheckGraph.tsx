@@ -368,6 +368,7 @@ export function DualAxisGraph({
           />
           <YAxis
             yAxisId="left"
+            allowDecimals={leftDigits > 0}
             width={48}
             domain={["auto", "auto"]}
             tickFormatter={(v) => `${Number(v).toFixed(leftDigits)}`}
@@ -376,6 +377,7 @@ export function DualAxisGraph({
           />
           <YAxis
             yAxisId="right"
+            allowDecimals={rightDigits > 0}
             orientation="right"
             width={48}
             domain={["auto", "auto"]}

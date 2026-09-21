@@ -478,9 +478,15 @@ and the text `"$254.32"` next to the user's description, and returns `2`.
 - **°C is a display-only preference** (Setting key `tempUnit`, `"F"` | `"C"`, chosen
   in Settings → Weather). Nothing about the fetch or the stored rows changes. When
   `"C"`: each raw °F value is converted to °C **before** bucketing, so the per-bucket
-  value and the delta are both computed in °C (`numColumnsFor(checks, view, unit)` in
+  value and the delta are both computed in °C (`numColumnsFor(checks, view, units)` in
   `lib/weather-view.ts`); temperature values and deltas then render to 1 decimal
-  place (0 dp for °F). Rain and wind are unaffected.
+  place (0 dp for °F).
+- **Rain and wind units are display-only too** (Settings → Weather, next to the
+  temperature toggle). Rain: Setting `rainUnit` `"in"` (default) | `"mm"` — inches
+  render to 2 dp, millimeters to 1 dp. Wind: Setting `windUnit` `"mph"` (default) |
+  `"ms"` (m/s) — whole numbers in both. Same rule as temperature: stored values stay
+  mm / mph, every raw value is converted **before** bucketing so deltas are computed
+  in the display unit, and only the formatting rounds.
 - **Rolling weather window stays derived.** Only date+location pairs the user actively
   adds become `TrackedForecast` rows; the home location's today + 9 days are never
   auto-pinned.

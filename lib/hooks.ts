@@ -42,6 +42,18 @@ export function useTempUnit(): "F" | "C" {
   return v === "C" ? "C" : "F";
 }
 
+/** Display rain unit ("in" default). Pure frontend — see weather-view.ts. */
+export function useRainUnit(): "in" | "mm" {
+  const v = useLiveQuery(() => store.getSetting<"in" | "mm">("rainUnit"));
+  return v === "mm" ? "mm" : "in";
+}
+
+/** Display wind-speed unit ("mph" default). Pure frontend — see weather-view.ts. */
+export function useWindUnit(): "mph" | "ms" {
+  const v = useLiveQuery(() => store.getSetting<"mph" | "ms">("windUnit"));
+  return v === "ms" ? "ms" : "mph";
+}
+
 export type DeltaPage =
   | "stocks"
   | "currency"

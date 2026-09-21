@@ -193,8 +193,9 @@ untouched. Bump the `weatherGen` constant again if `WeatherCheck` ever changes s
   memory).
 - `Setting` rows in use: `homeLocation` (`{ name, latLong } | null`), `weatherGen`
   (schema-generation guard for `WeatherCheck`), `tempUnit` (`"F"` | `"C"` display
-  preference — see `useTempUnit` / `lib/weather-view.ts`), and the sportsbook pair
-  below.
+  preference — see `useTempUnit` / `lib/weather-view.ts`), `rainUnit` (`"in"` |
+  `"mm"`) and `windUnit` (`"mph"` | `"ms"`) display preferences (same file;
+  `useRainUnit` / `useWindUnit`), and the sportsbook pair below.
 - Sportsbook credit accounting lives in `Setting` rows, not a store:
   `oddsApiKey` (the user's own Odds API key, or empty) and `sportsbookCredits`
   (`{ month: "YYYY-MM", used: number }`, read as 0 on month rollover or data-clear).

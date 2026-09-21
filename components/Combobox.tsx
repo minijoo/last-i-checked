@@ -25,6 +25,8 @@ export function Combobox({
   disabled = false,
   grouped = false,
   listClassName = "w-full",
+  floatingLabel = false,
+  anchorClassName = "relative",
 }: {
   options: ComboOption[];
   value: string | null;
@@ -34,6 +36,10 @@ export function Combobox({
   grouped?: boolean;
   /** Sizing for the dropdown list; defaults to the input's width. */
   listClassName?: string;
+  /** Show `placeholder` as a label that floats up on focus / when filled. */
+  floatingLabel?: boolean;
+  /** Positioning of the wrapper; use `static` to anchor the list to an outer `relative` ancestor. */
+  anchorClassName?: string;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -93,7 +99,7 @@ export function Combobox({
   );
 
   return (
-    <div className="relative">
+    <div className={anchorClassName}>
       <Input
         role="combobox"
         aria-expanded={open}
@@ -101,8 +107,8 @@ export function Combobox({
         aria-autocomplete="list"
         disabled={disabled}
         value={open ? q : (selected?.label ?? "")}
-        placeholder={selected ? selected.label : placeholder}
-        floatingLabel={false}
+        placeholder={floatingLabel || !selected ? placeholder : selected.label}
+        floatingLabel={floatingLabel}
         spellCheck={false}
         className="w-full"
         onFocus={() => {

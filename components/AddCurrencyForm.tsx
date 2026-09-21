@@ -59,20 +59,22 @@ export function AddCurrencyForm() {
   const disabled = currencies === null;
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-1.5">
+    <form onSubmit={submit} className="relative flex flex-col gap-1.5">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="w-36">
+        <div className="w-28">
           <Combobox
             options={options}
             value={base}
             onChange={pickBase}
-            placeholder="Base"
+            placeholder="Base currency"
+            floatingLabel
             disabled={disabled}
-            listClassName="w-64"
+            anchorClassName="static"
+            listClassName="left-0 w-64 max-w-full"
           />
         </div>
         <LuArrowRight aria-hidden className="text-muted" />
-        <div className="w-36">
+        <div className="w-28">
           <Combobox
             options={targetOptions}
             value={target}
@@ -81,10 +83,13 @@ export function AddCurrencyForm() {
               setOk(null);
             }}
             placeholder="Target currency"
+            floatingLabel
             disabled={disabled}
-            // Right-aligned on narrow screens so the wide list opens leftward
-            // instead of running off the right edge.
-            listClassName="w-64 right-0 sm:right-auto"
+            // On small screens the list anchors to the form (not the field) so
+            // it can't run off screen however the row wraps; from sm up the
+            // row never wraps, so it opens under the field.
+            anchorClassName="static sm:relative"
+            listClassName="right-0 w-64 max-w-full sm:left-0 sm:right-auto"
           />
         </div>
         <Button type="submit" variant="outline" disabled={busy || !target}>

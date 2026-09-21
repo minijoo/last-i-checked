@@ -136,3 +136,20 @@ body {
     transition: opacity 150ms ease;
   }
 }
+
+/* Floating input label (components/ui.tsx Input): transform + color only.
+   Tailwind v4 drives motion via the individual `translate`/`scale` properties,
+   so those are what must be transitioned. Strong ease-out so it responds
+   instantly to focus and settles softly. */
+.float-label {
+  transition:
+    translate 180ms cubic-bezier(0.19, 1, 0.22, 1), /* ease-out-expo */
+    scale 180ms cubic-bezier(0.19, 1, 0.22, 1),
+    color 180ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Skip the slide; the label still changes state, just without travelling. */
+  .float-label {
+    transition: color 150ms ease;
+  }
+}

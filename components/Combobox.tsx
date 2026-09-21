@@ -24,6 +24,7 @@ export function Combobox({
   placeholder = "Search…",
   disabled = false,
   grouped = false,
+  listClassName = "w-full",
 }: {
   options: ComboOption[];
   value: string | null;
@@ -31,6 +32,8 @@ export function Combobox({
   placeholder?: string;
   disabled?: boolean;
   grouped?: boolean;
+  /** Sizing for the dropdown list; defaults to the input's width. */
+  listClassName?: string;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -99,6 +102,7 @@ export function Combobox({
         disabled={disabled}
         value={open ? q : (selected?.label ?? "")}
         placeholder={selected ? selected.label : placeholder}
+        floatingLabel={false}
         spellCheck={false}
         className="w-full"
         onFocus={() => {
@@ -123,7 +127,7 @@ export function Combobox({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-md border border-border bg-surface shadow-lg"
+          className={`absolute z-30 mt-1 max-h-72 ${listClassName} overflow-y-auto rounded-md border border-border bg-surface shadow-lg`}
         >
           {filtered.length === 0 && (
             <li className="px-3 py-2 text-sm text-muted">No matches.</li>

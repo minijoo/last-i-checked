@@ -6,7 +6,7 @@ import { AddCustomCheckForm } from "@/components/AddCustomCheckForm";
 import { CustomCheckCard } from "@/components/CustomCheckCard";
 import { CustomMatrix, type CustomMatrixRow } from "@/components/CustomMatrix";
 import { Drawer } from "@/components/Drawer";
-import { FetchBar } from "@/components/FetchBar";
+import { FetchBar, type FetchNote } from "@/components/FetchBar";
 import { MatrixFrame } from "@/components/MatrixFrame";
 import { Button, Card, SectionTitle } from "@/components/ui";
 import { toCustomColumns } from "@/lib/customColumns";
@@ -24,6 +24,11 @@ export default function CustomPage() {
   const asPercent = useDeltaMode("custom") === "pct";
   const loading = tracked === undefined || checks === undefined;
   const [addOpen, setAddOpen] = useState(false);
+  // Result of the last per-row fetch. Shown under the table, not in the row: a
+  // message inside the label cell would stretch that column.
+  const [fetchNote, setFetchNote] = useState<(FetchNote & { name: string }) | null>(
+    null,
+  );
 
   // Text values are kept out of the shared-column matrix entirely — a long
   // string would distort every other row's column width — and get their own
@@ -68,7 +73,11 @@ export default function CustomPage() {
               ×
             </button>
           </span>
-          <FetchBar onFetch={() => runCustomFetch(t)} label="Fetch" />
+          <FetchBar
+            onFetch={() => runCustomFetch(t)}
+            label="Fetch"
+            onResult={(note) => setFetchNote({ ...note, name: t.name })}
+          />
         </div>
       ),
       columns: toCustomColumns(byName.get(t.name) ?? [], MAIN_COLS),
@@ -122,6 +131,23 @@ export default function CustomPage() {
                   percent={asPercent}
                 />
               </MatrixFrame>
+              {fetchNote && (fetchNote.msg || fetchNote.errors.length > 0) && (
+                <div className="mt-3 flex flex-col gap-0.5 text-xs" role="status">
+                  {fetchNote.msg && (
+                    <p className="text-muted">
+                      <span className="font-medium text-foreground">
+                        {fetchNote.name}:
+                      </span>{" "}
+                      {fetchNote.msg}
+                    </p>
+                  )}
+                  {fetchNote.errors.map((e, i) => (
+                    <p key={i} className="text-down">
+                      <span className="font-medium">{fetchNote.name}:</span> {e}
+                    </p>
+                  ))}
+                </div>
+              )}
               <p className="mt-3 text-xs text-muted">
                 Columns are the last {MAIN_COLS} days you fetched successfully. Open a
                 check for its full history and graph. The{" "}

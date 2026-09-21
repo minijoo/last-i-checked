@@ -41,7 +41,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <AppNav />
-        <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-28">
+        {/* overflow-x-clip: an open dropdown can extend past a narrow viewport; clip it
+            rather than let the page scroll sideways. Unlike `hidden`, `clip` blocks
+            programmatic/focus scrolling too and leaves the y-axis visible. */}
+        <main className="mx-auto w-full max-w-3xl flex-1 overflow-x-clip px-4 pt-8 pb-28">
           {children}
         </main>
         <PageSwitcher />

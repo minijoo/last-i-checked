@@ -18,15 +18,49 @@ export function Button({
   return <button className={`${base} ${styles} ${className}`} {...props} />;
 }
 
+/**
+ * Text input. When it has a `placeholder`, that text becomes a floating label:
+ * it rests inside the box and, on focus or once there's a value, shrinks and
+ * slides to the top-left (Instagram-style). Pass `floatingLabel={false}` for a
+ * plain placeholder. `className` lands on the wrapper (width, font) so callers
+ * size it the same way either mode.
+ */
 export function Input({
   className = "",
+  placeholder,
+  floatingLabel = true,
   ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
+}: InputHTMLAttributes<HTMLInputElement> & { floatingLabel?: boolean }) {
+  const field =
+    "rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-foreground";
+
+  if (!floatingLabel || !placeholder) {
+    return (
+      <input
+        className={`${field} py-1.5 placeholder:text-muted ${className}`}
+        placeholder={placeholder}
+        {...props}
+      />
+    );
+  }
+
+  // The native placeholder is a single space so `:placeholder-shown` tells the
+  // label whether the field is empty; the real text lives in the label.
   return (
-    <input
-      className={`rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none placeholder:text-muted focus:border-foreground ${className}`}
-      {...props}
-    />
+    <div className={`relative ${className}`}>
+      <input
+        aria-label={props["aria-label"] ?? placeholder}
+        {...props}
+        placeholder=" "
+        className={`peer w-full ${field} pb-1 pt-[15px]`}
+      />
+      <span
+        aria-hidden
+        className="float-label pointer-events-none absolute left-[13px] top-1/2 max-w-[calc(100%-1.5rem)] origin-left -translate-y-1/2 truncate text-sm text-muted peer-focus:max-w-[calc((100%-1.5rem)/0.72)] peer-focus:-translate-y-[calc(50%+9px)] peer-focus:scale-[0.72] peer-not-placeholder-shown:max-w-[calc((100%-1.5rem)/0.72)] peer-not-placeholder-shown:-translate-y-[calc(50%+9px)] peer-not-placeholder-shown:scale-[0.72]"
+      >
+        {placeholder}
+      </span>
+    </div>
   );
 }
 

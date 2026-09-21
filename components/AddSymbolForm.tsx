@@ -40,7 +40,7 @@ export function AddSymbolForm() {
         <Input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Add a ticker, e.g. AAPL"
+          placeholder="Enter a ticker"
           className="w-48"
           autoCapitalize="characters"
           spellCheck={false}
@@ -49,6 +49,11 @@ export function AddSymbolForm() {
           {busy ? "…" : "Add"}
         </Button>
       </div>
+      <p className="text-xs text-muted">
+        Stocks: e.g. AAPL, NVDA
+        <br />
+        Crypto: e.g. BTCUSD, ETHUSD
+      </p>
       {ok && <p className="text-xs text-up">{ok}</p>}
       {error && <p className="text-xs text-down">{error}</p>}
     </form>

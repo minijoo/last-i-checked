@@ -9,6 +9,7 @@ import { makeTrackKey } from "./sportsbook";
 import { chargedEventOdds } from "./sportsbookCredits";
 import { store } from "./store";
 import type {
+  CurrencyQuote,
   CustomScrapeResult,
   DailyWeather,
   LocationRef,
@@ -76,6 +77,41 @@ export async function runStockFetch(): Promise<FetchOutcome> {
     .map((t) => t.symbol);
   const errors =
     missing.length > 0 ? [`No price returned for ${missing.join(", ")}.`] : [];
+  return { added: checks.length, errors };
+}
+
+export async function runCurrencyFetch(): Promise<FetchOutcome> {
+  const tracked = await store.getTrackedCurrencies();
+  if (tracked.length === 0) return { added: 0, errors: [] };
+
+  let res: Result<{ quotes: CurrencyQuote[] }>;
+  try {
+    const q = encodeURIComponent(tracked.map((t) => t.pair).join(","));
+    res = await (await fetch(`/api/currency?pairs=${q}`)).json();
+  } catch (e) {
+    return {
+      added: 0,
+      errors: [e instanceof Error ? e.message : "Network error contacting Frankfurter"],
+    };
+  }
+  if (!res.ok) return { added: 0, errors: [res.error] };
+
+  const now = nowForCheck();
+  const checks = res.quotes.map((q) => ({
+    checkedAt: now,
+    pair: q.pair,
+    base: q.base,
+    target: q.target,
+    rate: jitterCustom(q.rate), // keeps 5 dp — jitterValue would round rates to 2
+    rateDate: q.rateDate,
+  }));
+  await store.appendCurrencyChecks(checks);
+
+  const missing = tracked
+    .filter((t) => !res.quotes.some((q) => q.pair === t.pair))
+    .map((t) => t.pair);
+  const errors =
+    missing.length > 0 ? [`No rate returned for ${missing.join(", ")}.`] : [];
   return { added: checks.length, errors };
 }
 

@@ -15,7 +15,7 @@ export function DeltaColumns({
 }: {
   columns: NumColumn[];
   format?: (n: number) => string;
-  digits?: number;
+  digits?: number | ((value: number) => number);
   emptyLabel?: string;
 }) {
   if (columns.length === 0) {
@@ -49,7 +49,10 @@ export function DeltaColumns({
               {format(c.value)}
             </div>
             <div className="mt-0.5 text-xs">
-              <Delta value={c.delta} digits={digits} />
+              <Delta
+                value={c.delta}
+                digits={typeof digits === "function" ? digits(c.value) : digits}
+              />
             </div>
           </div>
         );

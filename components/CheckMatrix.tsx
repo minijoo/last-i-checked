@@ -96,7 +96,7 @@ export function NumMatrix({
 }: {
   rows: NumRow[];
   format?: (n: number) => string;
-  digits?: number;
+  digits?: number | ((value: number) => number); // per-cell when a function
   maxCols?: number;
   percent?: boolean;
 }) {
@@ -142,7 +142,10 @@ export function NumMatrix({
                     {percent ? (
                       <Delta value={pctDelta} digits={2} suffix="%" />
                     ) : (
-                      <Delta value={cell.delta} digits={digits} />
+                      <Delta
+                        value={cell.delta}
+                        digits={typeof digits === "function" ? digits(cell.value) : digits}
+                      />
                     )}
                   </div>
                 </td>

@@ -1,6 +1,6 @@
 # IndexedDB Schema — Last I Checked
 
-**Database:** `last-i-checked`  ·  **Version:** 1
+**Database:** `last-i-checked`  ·  **Version:** 2
 
 ## Design notes
 
@@ -25,6 +25,12 @@
   in it** — line moves must not orphan history). It snapshots the raw Odds API
   `Outcome` JSON (`rawOutcome`) alongside the extracted `price` / `point`, so a check
   stays interpretable if the upstream schema drifts. Full design: `docs/sportsbook.md`.
+- `CurrencyCheck` is append-only, matched to its `TrackedCurrency` row by `pair`
+  (`"BASE/TARGET"`, direction-sensitive: `USD/EUR` and `EUR/USD` are different items).
+  Like `WeatherCheck` it snapshots `base` / `target`, and it also stores `rateDate`
+  (Frankfurter's `date`, the ECB publish day) because the provider updates once per
+  business day — a flat weekend value is explained by an unchanged `rateDate`. Buckets
+  by `checkedAt` calendar day, like stocks. Full design: `docs/currency.md`.
 
 ## Record types
 
@@ -124,6 +130,23 @@ interface SportsbookCheck {   // one row per fetch, per pinned outcome; append-o
   rawOutcome: unknown;        // raw Odds API Outcome JSON — schema-drift insurance
   status: "ok" | "unavailable"; // "unavailable" = fetch ok but this outcome wasn't in it
 }
+
+interface TrackedCurrency {   // registry: currency pairs tracked right now
+  pair: string;               // PK, `${base}/${target}` e.g. "USD/EUR"
+  base: string;               // ISO 4217 code, e.g. "USD"
+  target: string;             // e.g. "EUR"; never equal to base
+  addedAt: number;            // epoch ms
+}
+
+interface CurrencyCheck {     // one row per fetch, per pair; append-only
+  id: number;                 // auto-increment PK
+  checkedAt: number;          // epoch ms
+  pair: string;               // matches TrackedCurrency.pair
+  base: string;               // snapshot of TrackedCurrency.base
+  target: string;             // snapshot of TrackedCurrency.target
+  rate: number;               // 1 base = rate target (Frankfurter rates[target])
+  rateDate: string;           // "YYYY-MM-DD" — Frankfurter `date` (last ECB publish day)
+}
 ```
 
 ## Object stores
@@ -139,10 +162,16 @@ interface SportsbookCheck {   // one row per fetch, per pinned outcome; append-o
 | `CustomCheck`     | `id`     | yes           | `name`, `checkedAt`, `[name+checkedAt]`       |
 | `TrackedSportsbook` | `id`   | yes           | `addedAt`, `[eventId+marketKey+region]`       |
 | `SportsbookCheck` | `id`     | yes           | `trackKey`, `checkedAt`, `[trackKey+checkedAt]` |
+| `TrackedCurrency` | `pair`   | no            | `addedAt`                                     |
+| `CurrencyCheck`   | `id`     | yes           | `pair`, `checkedAt`, `[pair+checkedAt]`       |
 
 ## Migrations
 
-- **v1** — create all stores + indexes above. This is the only Dexie version.
+- **v1** — create the stores + indexes above (everything except the two currency stores).
+- **v2** — add `TrackedCurrency` + `CurrencyCheck`. Additive only, no upgrade function.
+  Needs a real `db.version(2)` (not an edit to v1): browsers that already have the DB
+  won't create new stores from a changed v1 block. (Sportsbook was folded into v1
+  before release; that is no longer possible.)
 
 The NWS → OpenWeather switch changed `WeatherCheck` / `TrackedForecast` **fields** but
 no keyPath or index, so it needs no Dexie version bump. Incompatible pre-release
@@ -159,7 +188,7 @@ untouched. Bump the `weatherGen` constant again if `WeatherCheck` ever changes s
 - `WeatherCheck.dateStr` and `TrackedForecast.forecastDate` are both `YYYYMMDD` now —
   one `WeatherCheck` row per (location, date) per fetch (day + night temps in that row).
 - The `[symbol+checkedAt]` / `[location+dateStr]` / `[name+checkedAt]` /
-  `[trackKey+checkedAt]` compound indexes are the graph-query access path (all checks
+  `[trackKey+checkedAt]` / `[pair+checkedAt]` compound indexes are the graph-query access path (all checks
   for one item, roughly in time order — the graph still sorts by `checkedAt` in
   memory).
 - `Setting` rows in use: `homeLocation` (`{ name, latLong } | null`), `weatherGen`

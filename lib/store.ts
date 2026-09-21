@@ -10,11 +10,13 @@ import { calendarKey } from "./format";
 import { makeTrackKey } from "./sportsbook";
 import type {
   BackupBlob,
+  CurrencyCheck,
   CustomCheck,
   LocationRef,
   Setting,
   SportsbookCheck,
   StockCheck,
+  TrackedCurrency,
   TrackedCustom,
   TrackedForecast,
   TrackedSportsbook,
@@ -102,6 +104,17 @@ export interface Store {
   ): Promise<void>;
   getSportsbookChecks(trackKey: string): Promise<SportsbookCheck[]>; // ascending
   getAllSportsbookChecks(): Promise<SportsbookCheck[]>;
+
+  // --- currency: registry ---
+  getTrackedCurrencies(): Promise<TrackedCurrency[]>;
+  /** Returns false when the pair was already tracked (nothing written). */
+  addTrackedCurrency(base: string, target: string): Promise<boolean>;
+  removeTrackedCurrency(pair: string): Promise<void>;
+
+  // --- currency: append-only checks ---
+  appendCurrencyChecks(checks: Array<Omit<CurrencyCheck, "id">>): Promise<void>;
+  getCurrencyChecks(pair: string): Promise<CurrencyCheck[]>; // ascending by checkedAt
+  getAllCurrencyChecks(): Promise<CurrencyCheck[]>;
 
   // --- generic settings ---
   getSetting<T = unknown>(key: string): Promise<T | undefined>;
@@ -295,6 +308,44 @@ class LocalStore implements Store {
     return getDb().sportsbookChecks.orderBy("checkedAt").toArray();
   }
 
+  getTrackedCurrencies(): Promise<TrackedCurrency[]> {
+    return getDb().trackedCurrencies.orderBy("pair").toArray();
+  }
+
+  async addTrackedCurrency(base: string, target: string): Promise<boolean> {
+    const b = base.trim().toUpperCase();
+    const t = target.trim().toUpperCase();
+    if (!b || !t || b === t) throw new Error("Pick two different currencies.");
+    const pair = `${b}/${t}`;
+    const db = getDb();
+    if (await db.trackedCurrencies.get(pair)) return false;
+    await db.trackedCurrencies.put({ pair, base: b, target: t, addedAt: Date.now() });
+    return true;
+  }
+
+  async removeTrackedCurrency(pair: string): Promise<void> {
+    // Deletes only the registry row; CurrencyCheck history is left intact.
+    await getDb().trackedCurrencies.delete(pair);
+  }
+
+  async appendCurrencyChecks(
+    checks: Array<Omit<CurrencyCheck, "id">>,
+  ): Promise<void> {
+    if (checks.length === 0) return;
+    await getDb().currencyChecks.bulkAdd(checks as CurrencyCheck[]);
+  }
+
+  getCurrencyChecks(pair: string): Promise<CurrencyCheck[]> {
+    return getDb()
+      .currencyChecks.where("[pair+checkedAt]")
+      .between([pair, MIN_KEY], [pair, MAX_KEY])
+      .toArray();
+  }
+
+  getAllCurrencyChecks(): Promise<CurrencyCheck[]> {
+    return getDb().currencyChecks.orderBy("checkedAt").toArray();
+  }
+
   async getSetting<T = unknown>(key: string): Promise<T | undefined> {
     const row = await getDb().settings.get(key);
     return row ? (row.value as T) : undefined;
@@ -316,6 +367,8 @@ class LocalStore implements Store {
       customChecks,
       trackedSportsbook,
       sportsbookChecks,
+      trackedCurrencies,
+      currencyChecks,
     ] = await Promise.all([
       db.stockChecks.toArray(),
       db.weatherChecks.toArray(),
@@ -326,6 +379,8 @@ class LocalStore implements Store {
       db.customChecks.toArray(),
       db.trackedSportsbook.toArray(),
       db.sportsbookChecks.toArray(),
+      db.trackedCurrencies.toArray(),
+      db.currencyChecks.toArray(),
     ]);
     return {
       app: "last-i-checked",
@@ -340,6 +395,8 @@ class LocalStore implements Store {
       customChecks,
       trackedSportsbook,
       sportsbookChecks,
+      trackedCurrencies,
+      currencyChecks,
     };
   }
 
@@ -363,6 +420,8 @@ class LocalStore implements Store {
         db.customChecks,
         db.trackedSportsbook,
         db.sportsbookChecks,
+        db.trackedCurrencies,
+        db.currencyChecks,
       ],
       async () => {
         if (mode === "replace") {
@@ -376,6 +435,8 @@ class LocalStore implements Store {
             db.customChecks.clear(),
             db.trackedSportsbook.clear(),
             db.sportsbookChecks.clear(),
+            db.trackedCurrencies.clear(),
+            db.currencyChecks.clear(),
           ]);
         }
         // Drop ids so append-only rows re-key cleanly and never collide.
@@ -401,6 +462,10 @@ class LocalStore implements Store {
         );
         await db.sportsbookChecks.bulkAdd(
           strip(blob.sportsbookChecks ?? []) as SportsbookCheck[],
+        );
+        await db.trackedCurrencies.bulkPut(blob.trackedCurrencies ?? []);
+        await db.currencyChecks.bulkAdd(
+          strip(blob.currencyChecks ?? []) as CurrencyCheck[],
         );
       },
     );

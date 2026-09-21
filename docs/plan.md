@@ -39,16 +39,20 @@ meaning to those numbers.
   total, player prop, or a futures/award price) over time, matched to its
   `TrackedSportsbook` registry row by a `trackKey` value tuple. Its own page; full
   design in `docs/sportsbook.md`.
+- `CurrencyCheck` tracks one fiat exchange rate (`1 base = rate target`) for a
+  `(base, target)` pair, matched to its `TrackedCurrency` registry row by the joined
+  `pair` string (`"USD/EUR"`). Behaves like Stocks (one number, one-day buckets) but
+  is entered with two dropdowns and has its own page; design in `docs/currency.md`.
 - The `StockCheck` / `WeatherCheck` stores are **append-only** in normal use: a fetch
   only inserts rows. Pruning old history is a later concern (see Open Questions).
 - What the user is *currently tracking* lives in separate **registry** stores
-  (`TrackedStock`, `TrackedForecast`, `TrackedCustom`, `TrackedSportsbook`) plus a
-  `Setting` store for the home location.
+  (`TrackedStock`, `TrackedForecast`, `TrackedCustom`, `TrackedSportsbook`,
+  `TrackedCurrency`) plus a `Setting` store for the home location.
   Adding an item writes a registry row; "untracking" deletes only that registry row —
   the check history stays, so re-adding the same symbol or location-date later brings
   its past checks back into the graph. History is matched to an item by value
-  (`symbol`, `(location, dateStr)` where `dateStr` is `YYYYMMDD`, custom `name`, or
-  sportsbook `trackKey`), not by an id.
+  (`symbol`, `(location, dateStr)` where `dateStr` is `YYYYMMDD`, custom `name`,
+  sportsbook `trackKey`, or currency `pair`), not by an id.
 - These two objects exist independently and are not related. They live on their own,
   separate pages.
 
@@ -60,7 +64,7 @@ immediately previous one dilutes the delta to noise (`+0.02 since 12 seconds ago
 
 **Bucket the history, then compare bucket-to-bucket.**
 
-- A **bucket** is one distinct calendar day for stocks and custom checks, or one
+- A **bucket** is one distinct calendar day for stocks, currency and custom checks, or one
   distinct half-day (split at local noon) for weather and sportsbook. Weather
   forecasts for a fixed future date, and sportsbook lines, both genuinely move within
   a day, so they get the finer bucket; stock price at this app's altitude does not.
@@ -229,14 +233,29 @@ the cliff feels wrong in practice.
     - Detail page `/sportsbook/[id]`, mirroring `/stocks/[symbol]` and
       `/custom/[name]`.
 
+- Currency page
+    - Tracks one fiat exchange rate per `(base, target)` pair, behaving like Stocks:
+      Fetch button, one-day buckets, columns of values with deltas, `%` toggle, detail
+      page `/currency/[pair]`. **Full design: `docs/currency.md`.**
+    - Add form is two searchable dropdowns over Frankfurter's ~30 currencies: **base**
+      (defaults to `USD`) and **target** (required; the base is excluded from it), plus
+      an Add button. Writes a `TrackedCurrency` row; direction matters, so `USD → EUR`
+      and `EUR → USD` are separate rows.
+    - Rows are headed `USD → EUR` (codes only, full names in a tooltip) to keep the
+      label column narrow. Rates render to 5 significant digits; deltas use the rate's
+      own decimal places.
+    - Fetch makes one Frankfurter request per distinct base. The provider publishes
+      once per business day, so several same-day fetches (and weekends) legitimately
+      show an unchanged rate; the stored `rateDate` says which publish day it was.
+
 ## Data
 
 _High-level only; details go in `docs/schema.md`._
 
 - Stored in IndexedDB (`last-i-checked`)
 - Stores: append-only checks (`StockCheck`, `WeatherCheck`, `CustomCheck`,
-  `SportsbookCheck`) + registry (`TrackedStock`, `TrackedForecast`, `TrackedCustom`,
-  `TrackedSportsbook`) + `Setting` (home location)
+  `SportsbookCheck`, `CurrencyCheck`) + registry (`TrackedStock`, `TrackedForecast`,
+  `TrackedCustom`, `TrackedSportsbook`, `TrackedCurrency`) + `Setting` (home location)
 - **All reads and writes go through one data-access module** (e.g. `lib/store.ts`)
   exposing an app-level interface (`getTrackedStocks()`, `appendStockChecks()`,
   `getChecksForSymbol()`, …). Components and server actions never touch Dexie/IndexedDB
@@ -255,6 +274,17 @@ _High-level only; details go in `docs/schema.md`._
       `GET https://data.alpaca.markets/v2/stocks/snapshots?symbols=AAPL,TSLA,MSFT,GOOGL`
     - Can retrieve in bulk.
     - Response is JSON. Stock price will be `latestTrade.p`
+- Currency: Frankfurter API (ECB reference rates) — public, **no key**. See
+  `docs/currency.md`.
+    - **Currency list (dropdown options):**
+      `GET https://api.frankfurter.dev/v1/currencies` → `{ "AUD": "Australian Dollar", … }`
+      (~30 entries); cached 24 h server-side.
+    - **Rates:**
+      `GET https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR,GBP` →
+      `{ amount, base, date, rates: { EUR: 0.8726, … } }`. One `base` per request, so
+      one request per distinct tracked base, in parallel. Rates publish once per
+      business day (~16:00 CET); weekends return the last published `date`, which is
+      stored as `rateDate`.
 - Weather: OpenWeather API (`OPENWEATHER_API_KEY`, `units=imperial` on every call so
   temperatures come back in Fahrenheit; precipitation is always mm regardless).
   Global coverage. Needs an active "One Call by Call" subscription (1000 calls/day
@@ -468,6 +498,16 @@ and the text `"$254.32"` next to the user's description, and returns `2`.
   shared `ODDS_API_KEY` (tracked in `Setting`, resets monthly / on data-clear);
   past that the user pastes their own key in Settings → Sportsbook.
 
+- **Currency category** (5th) — provider is Frankfurter
+  (public, no key); full design in `docs/currency.md`. Tracked item is a directional
+  `(base, target)` pair chosen with two searchable dropdowns (base defaults to USD;
+  target required and never equal to base). Own record types (`TrackedCurrency` /
+  `CurrencyCheck`, keyed by `pair`) rather than overloading `StockCheck`; bucketing,
+  matrix, delta toggle and graph are reused. Rows read `USD → EUR` to keep the
+  label column narrow; deltas use the rate's own precision. Bucketed by calendar day
+  like Stocks even though the provider updates once per business day. Nav icon
+  `MdCurrencyExchange`, placed after Stocks.
+
 ## Open Questions
 
 - Sportsbook page is designed (`docs/sportsbook.md`); its remaining open questions —
@@ -506,3 +546,6 @@ and the text `"$254.32"` next to the user's description, and returns `2`.
 6. Sportsbook category per `docs/sportsbook.md` — Odds API proxy in `lib/actions/`,
    `TrackedSportsbook` / `SportsbookCheck` stores, drill-down + `(event, market,
    region)` section view
+7. Currency category per `docs/currency.md` — Frankfurter provider + route handlers,
+   `TrackedCurrency` / `CurrencyCheck` stores (Dexie `version(2)`), two-dropdown add
+   form, `/currency` + `/currency/[pair]` pages, nav tab

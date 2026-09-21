@@ -1,9 +1,11 @@
 import Dexie, { type Table } from "dexie";
 import type {
+  CurrencyCheck,
   CustomCheck,
   Setting,
   SportsbookCheck,
   StockCheck,
+  TrackedCurrency,
   TrackedCustom,
   TrackedForecast,
   TrackedSportsbook,
@@ -23,6 +25,8 @@ export class LicDatabase extends Dexie {
   customChecks!: Table<CustomCheck, number>;
   trackedSportsbook!: Table<TrackedSportsbook, number>;
   sportsbookChecks!: Table<SportsbookCheck, number>;
+  trackedCurrencies!: Table<TrackedCurrency, string>;
+  currencyChecks!: Table<CurrencyCheck, number>;
 
   constructor() {
     super("last-i-checked");
@@ -36,6 +40,11 @@ export class LicDatabase extends Dexie {
       customChecks: "++id, name, checkedAt, [name+checkedAt]",
       trackedSportsbook: "++id, addedAt, [eventId+marketKey+region]",
       sportsbookChecks: "++id, trackKey, checkedAt, [trackKey+checkedAt]",
+    });
+    // Additive: existing browsers only get the two new stores.
+    this.version(2).stores({
+      trackedCurrencies: "pair, addedAt",
+      currencyChecks: "++id, pair, checkedAt, [pair+checkedAt]",
     });
   }
 }

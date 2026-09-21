@@ -7,6 +7,24 @@ export function formatPrice(n: number): string {
   });
 }
 
+/** Decimal places that show 5 significant digits of an exchange rate: 0.74939 → 5,
+ *  1.4045 → 4, 157.89 → 2, 17823 → 0, 0.000056106 → 9. Rates span ~1e-5 … 2e4, so
+ *  a fixed count won't do. Deltas reuse this so "+0.00123" sits under "0.87260". */
+export function rateDecimals(n: number): number {
+  const abs = Math.abs(n);
+  if (!Number.isFinite(abs) || abs === 0) return 4;
+  const mag = Math.floor(Math.log10(abs)); // 0.8726 → -1, 157.89 → 2
+  return Math.min(10, Math.max(0, 4 - mag));
+}
+
+export function formatRate(n: number): string {
+  const d = rateDecimals(n);
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
+  });
+}
+
 /** Signed delta, e.g. "+3.10", "-0.42", "0.00". With `trim`, `digits` is a cap
  *  and trailing zeros are dropped: "+3.1", "-0.005", "+42". */
 export function formatDelta(n: number, digits = 2, trim = false): string {

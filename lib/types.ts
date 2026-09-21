@@ -32,6 +32,25 @@ export interface TrackedStock {
   addedAt: number; // epoch ms
 }
 
+/** Registry: currency pairs the user is tracking right now. */
+export interface TrackedCurrency {
+  pair: string; // PK, `${base}/${target}` e.g. "USD/EUR"
+  base: string; // ISO 4217 code
+  target: string; // never equal to base
+  addedAt: number; // epoch ms
+}
+
+/** One row per fetch, per pair. Append-only. */
+export interface CurrencyCheck {
+  id?: number; // auto-increment PK
+  checkedAt: number; // epoch ms
+  pair: string; // matches TrackedCurrency.pair
+  base: string; // snapshot of TrackedCurrency.base
+  target: string; // snapshot of TrackedCurrency.target
+  rate: number; // 1 base = rate target
+  rateDate: string; // "YYYY-MM-DD" — Frankfurter's `date` (last ECB publish day)
+}
+
 /** Registry: (location, calendar-date) pairs the user has pinned. */
 export interface TrackedForecast {
   id?: number; // auto-increment PK
@@ -199,6 +218,19 @@ export interface StockQuote {
   price: number;
 }
 
+export interface CurrencyQuote {
+  pair: string;
+  base: string;
+  target: string;
+  rate: number;
+  rateDate: string;
+}
+
+export interface CurrencyInfo {
+  code: string; // ISO 4217, "USD"
+  name: string; // "United States Dollar"
+}
+
 export interface SymbolInfo {
   symbol: string;
   name: string;
@@ -236,4 +268,6 @@ export interface BackupBlob {
   customChecks?: CustomCheck[];
   trackedSportsbook?: TrackedSportsbook[]; // optional: absent in pre-sportsbook backups
   sportsbookChecks?: SportsbookCheck[];
+  trackedCurrencies?: TrackedCurrency[]; // optional: absent in pre-currency backups
+  currencyChecks?: CurrencyCheck[];
 }

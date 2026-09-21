@@ -20,6 +20,18 @@ export function useStockChecks(symbol: string) {
   return useLiveQuery(() => store.getStockChecks(symbol), [symbol]);
 }
 
+export function useTrackedCurrencies() {
+  return useLiveQuery(() => store.getTrackedCurrencies());
+}
+
+export function useAllCurrencyChecks() {
+  return useLiveQuery(() => store.getAllCurrencyChecks());
+}
+
+export function useCurrencyChecks(pair: string) {
+  return useLiveQuery(() => store.getCurrencyChecks(pair), [pair]);
+}
+
 export function useHomeLocation() {
   return useLiveQuery(() => store.getHomeLocation());
 }
@@ -30,7 +42,12 @@ export function useTempUnit(): "F" | "C" {
   return v === "C" ? "C" : "F";
 }
 
-export type DeltaPage = "stocks" | "weather" | "sportsbook" | "custom";
+export type DeltaPage =
+  | "stocks"
+  | "currency"
+  | "weather"
+  | "sportsbook"
+  | "custom";
 export type DeltaMode = "abs" | "pct";
 
 /** Per-page toggle: render matrix deltas as percent change ("pct") vs. the

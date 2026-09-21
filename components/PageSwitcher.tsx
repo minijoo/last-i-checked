@@ -2,13 +2,43 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { IoMdPartlySunny } from "react-icons/io";
+import { LuBitcoin, LuChartNoAxesCombined } from "react-icons/lu";
+import { MdCurrencyExchange, MdOutlineDashboardCustomize } from "react-icons/md";
+import { PiBaseballDuotone, PiFootballDuotone } from "react-icons/pi";
 
-const TABS: Array<{ href: string; label: string }> = [
-  { href: "/stocks", label: "Stocks" },
-  { href: "/weather", label: "Weather" },
-  { href: "/sportsbook", label: "Sportsbook" },
-  { href: "/custom", label: "Custom" },
+// `label` is the accessible name — the tabs render icons only.
+const TABS: Array<{ href: string; label: string; icon: ReactNode }> = [
+  {
+    href: "/stocks",
+    label: "Stocks",
+    icon: (
+      <>
+        <LuChartNoAxesCombined />
+        <LuBitcoin />
+      </>
+    ),
+  },
+  { href: "/currency", label: "Currency", icon: <MdCurrencyExchange /> },
+  { href: "/weather", label: "Weather", icon: <IoMdPartlySunny /> },
+  {
+    href: "/sportsbook",
+    label: "Sportsbook",
+    icon: (
+      <>
+        <PiFootballDuotone />
+        <PiBaseballDuotone />
+      </>
+    ),
+  },
+  { href: "/custom", label: "Custom", icon: <MdOutlineDashboardCustomize /> },
 ];
 
 /** Highlight fully collapsed to the left — used before we've measured, and on
@@ -48,8 +78,7 @@ export function PageSwitcher() {
       const l = list.getBoundingClientRect();
       const r = item.getBoundingClientRect();
       setClip(
-        `inset(${r.top - l.top}px ${l.right - r.right}px ${
-          l.bottom - r.bottom
+        `inset(${r.top - l.top}px ${l.right - r.right}px ${l.bottom - r.bottom
         }px ${r.left - l.left}px round 999px)`,
       );
     }
@@ -57,7 +86,7 @@ export function PageSwitcher() {
     measure();
     const raf = requestAnimationFrame(() => setReady(true));
     window.addEventListener("resize", measure);
-    document.fonts?.ready.then(measure).catch(() => {});
+    document.fonts?.ready.then(measure).catch(() => { });
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", measure);
@@ -80,10 +109,12 @@ export function PageSwitcher() {
             >
               <Link
                 href={t.href}
+                aria-label={t.label}
+                title={t.label}
                 aria-current={i === active ? "page" : undefined}
-                className="flex items-center rounded-full px-4 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground"
+                className="flex items-center gap-1 rounded-full px-4 py-1.5 text-lg text-muted transition-colors hover:text-foreground"
               >
-                {t.label}
+                {t.icon}
               </Link>
             </li>
           ))}
@@ -97,8 +128,8 @@ export function PageSwitcher() {
         >
           {TABS.map((t) => (
             <li key={t.href}>
-              <span className="flex items-center rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background">
-                {t.label}
+              <span className="flex items-center gap-1 rounded-full bg-foreground px-4 py-1.5 text-lg text-background">
+                {t.icon}
               </span>
             </li>
           ))}

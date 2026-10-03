@@ -23,6 +23,7 @@ Other scripts: `npm run build`, `npm test` (bucketing logic), `npm run typecheck
 | --- | --- | --- |
 | **Weather + city search** (OpenWeather) | `OPENWEATHER_API_KEY` | Weather page loads; fetch/search show a "key not set" message |
 | **Stocks** (Alpaca) | `ALPACA_API_KEY_ID` + `ALPACA_API_SECRET_KEY` | Stocks page loads; add/fetch show a "keys not set" message |
+| **Stocks, Korean Markets** (data.go.kr) | `KR_API_KEY` | Korean add/fetch show a "key not set" message; US unaffected |
 
 Restart the dev server after editing `.env.local`.
 
@@ -55,6 +56,6 @@ lib/
   store.ts      data-access module (the v1/v2 seam)
   buckets.ts    delta bucketing + tests
   fetchers.ts   "Fetch" button orchestration
-  actions/      'use server' proxies: Alpaca (stocks), OpenWeather (weather + geocoding)
+  actions/      'use server' proxies: stocks (Alpaca / data.go.kr), OpenWeather (weather + geocoding)
 docs/           plan.md, schema.md, design.png, mockups/
 ```

@@ -35,11 +35,14 @@
 ## Record types
 
 ```ts
+type StockMarket = "us" | "kr"; // picks the provider: Alpaca / data.go.kr
+
 interface StockCheck {        // one row per fetch, per symbol; append-only
   id: number;                 // auto-increment PK
   checkedAt: number;          // epoch ms
   symbol: string;
-  price: number;              // price at this fetch
+  market: StockMarket;        // snapshot of TrackedStock.market
+  price: number;              // price at this fetch, in the market's currency (USD / KRW)
 }
 
 interface WeatherCheck {      // one row per fetch, per (location, date); append-only
@@ -59,7 +62,10 @@ interface WeatherCheck {      // one row per fetch, per (location, date); append
 }
 
 interface TrackedStock {      // registry: symbols tracked right now
-  symbol: string;             // PK
+  symbol: string;             // PK — US tickers are letters, KR codes start with a
+                              // digit, so one key space serves every market
+  market: StockMarket;        // which provider re-fetches it
+  name?: string;              // company name, when the provider returns one (KR)
   addedAt: number;            // epoch ms
 }
 
@@ -172,6 +178,9 @@ interface CurrencyCheck {     // one row per fetch, per pair; append-only
   Needs a real `db.version(2)` (not an edit to v1): browsers that already have the DB
   won't create new stores from a changed v1 block. (Sportsbook was folded into v1
   before release; that is no longer possible.)
+- **v3** — `TrackedStock` / `StockCheck` gain `market`. No store or index change; the
+  upgrade function backfills `market: "us"` on existing rows. `importAll` does the
+  same for backups made before v3.
 
 The NWS → OpenWeather switch changed `WeatherCheck` / `TrackedForecast` **fields** but
 no keyPath or index, so it needs no Dexie version bump. Incompatible pre-release

@@ -9,7 +9,7 @@ import { MatrixFrame } from "@/components/MatrixFrame";
 import { Card } from "@/components/ui";
 import { toColumns } from "@/lib/buckets";
 import { runStockFetch } from "@/lib/fetchers";
-import { formatPrice } from "@/lib/format";
+import { MARKET_TAG, formatStockPrice, stockDigits } from "@/lib/format";
 import { useAllStockChecks, useDeltaMode, useTrackedStocks } from "@/lib/hooks";
 import { store } from "@/lib/store";
 
@@ -29,13 +29,26 @@ export default function StocksPage() {
     return (tracked ?? []).map((t) => ({
       id: t.symbol,
       label: (
-        <span className="flex items-center gap-2">
-          <Link
-            href={`/stocks/${t.symbol}`}
-            className="font-mono font-semibold hover:underline"
-          >
-            {t.symbol}
-          </Link>
+        <span className="flex items-baseline gap-2">
+          {t.market !== "us" && t.name ? (
+            // KR codes are opaque, so the company name leads.
+            <Link
+              href={`/stocks/${t.symbol}`}
+              className="flex flex-col leading-tight hover:underline"
+            >
+              <span className="text-lg font-semibold">{t.name}</span>
+              <span className="text-xs text-muted">
+                ({MARKET_TAG[t.market]} · {t.symbol})
+              </span>
+            </Link>
+          ) : (
+            <Link
+              href={`/stocks/${t.symbol}`}
+              className="font-mono font-semibold hover:underline"
+            >
+              {t.symbol}
+            </Link>
+          )}
           <button
             onClick={() => store.removeTrackedStock(t.symbol)}
             className="text-xs text-muted hover:text-down"
@@ -46,6 +59,8 @@ export default function StocksPage() {
         </span>
       ),
       columns: toColumns(bySymbol.get(t.symbol) ?? [], "stock"),
+      format: (n: number) => formatStockPrice(n, t.market),
+      digits: stockDigits(t.market),
     }));
   }, [tracked, checks]);
 
@@ -75,7 +90,7 @@ export default function StocksPage() {
       ) : (
         <Card>
           <MatrixFrame page="stocks">
-            <NumMatrix rows={rows} format={formatPrice} percent={asPercent} />
+            <NumMatrix rows={rows} percent={asPercent} />
           </MatrixFrame>
           <p className="mt-3 text-xs text-muted">
             Columns are the days you fetched. A blank cell means no check that day

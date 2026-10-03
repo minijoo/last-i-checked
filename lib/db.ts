@@ -46,6 +46,16 @@ export class LicDatabase extends Dexie {
       trackedCurrencies: "pair, addedAt",
       currencyChecks: "++id, pair, checkedAt, [pair+checkedAt]",
     });
+    // Stocks gained a `market`; everything tracked before then was US.
+    this.version(3)
+      .stores({})
+      .upgrade(async (tx) => {
+        const setUs = (row: { market?: string }) => {
+          row.market ??= "us";
+        };
+        await tx.table("trackedStocks").toCollection().modify(setUs);
+        await tx.table("stockChecks").toCollection().modify(setUs);
+      });
   }
 }
 

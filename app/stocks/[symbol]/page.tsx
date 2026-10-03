@@ -8,7 +8,7 @@ import { FetchBar } from "@/components/FetchBar";
 import { Card, SectionTitle } from "@/components/ui";
 import { toColumns } from "@/lib/buckets";
 import { runStockFetch } from "@/lib/fetchers";
-import { formatPrice, formatStamp } from "@/lib/format";
+import { formatStamp, formatStockPrice, stockDigits } from "@/lib/format";
 import { useStockChecks } from "@/lib/hooks";
 
 export default function StockDetailPage({
@@ -33,6 +33,8 @@ export default function StockDetailPage({
     [checks],
   );
   const latest = checks && checks.length > 0 ? checks[checks.length - 1] : null;
+  const market = latest?.market ?? "us";
+  const formatPrice = (n: number) => formatStockPrice(n, market);
 
   return (
     <div className="flex flex-col gap-6">
@@ -71,7 +73,11 @@ export default function StockDetailPage({
           </section>
           <section className="flex flex-col gap-2">
             <SectionTitle>By day, latest</SectionTitle>
-            <DeltaColumns columns={columns} format={formatPrice} />
+            <DeltaColumns
+              columns={columns}
+              format={formatPrice}
+              digits={stockDigits(market)}
+            />
           </section>
           <section className="flex flex-col gap-2">
             <SectionTitle>Full history</SectionTitle>

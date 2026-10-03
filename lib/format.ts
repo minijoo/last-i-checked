@@ -1,9 +1,35 @@
 // Small formatting helpers shared across the UI.
 
+import type { StockMarket } from "./types";
+
 export function formatPrice(n: number): string {
   return n.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  });
+}
+
+export const MARKET_LABEL: Record<StockMarket, string> = {
+  us: "U.S. Markets",
+  kr: "Korean Markets",
+};
+
+/** Short tag shown beside a non-US stock's code, e.g. "(KR · 005930)". */
+export const MARKET_TAG: Record<StockMarket, string> = {
+  us: "US",
+  kr: "KR",
+};
+
+/** Decimals a stock price is shown with: won has no minor unit in practice. */
+export function stockDigits(market: StockMarket): number {
+  return market === "us" ? 2 : 0;
+}
+
+export function formatStockPrice(n: number, market: StockMarket): string {
+  const d = stockDigits(market);
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
   });
 }
 

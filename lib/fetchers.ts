@@ -15,6 +15,7 @@ import type {
   LocationRef,
   Result,
   SportsbookCheck,
+  StockMarket,
   StockQuote,
   TrackedCustom,
   TrackedSportsbook,
@@ -52,31 +53,51 @@ export async function runStockFetch(): Promise<FetchOutcome> {
   const tracked = await store.getTrackedStocks();
   if (tracked.length === 0) return { added: 0, errors: [] };
 
-  let res: Result<{ quotes: StockQuote[] }>;
+  let res: {
+    quotes: StockQuote[];
+    errors: Partial<Record<StockMarket, string>>;
+  };
   try {
-    const q = encodeURIComponent(tracked.map((t) => t.symbol).join(","));
-    res = await (await fetch(`/api/stocks?symbols=${q}`)).json();
+    const params = new URLSearchParams();
+    for (const m of new Set(tracked.map((t) => t.market))) {
+      params.set(
+        m,
+        tracked
+          .filter((t) => t.market === m)
+          .map((t) => t.symbol)
+          .join(","),
+      );
+    }
+    res = await (await fetch(`/api/stocks?${params}`)).json();
   } catch (e) {
     return {
       added: 0,
-      errors: [e instanceof Error ? e.message : "Network error contacting Alpaca"],
+      errors: [e instanceof Error ? e.message : "Network error fetching stock prices"],
     };
   }
-  if (!res.ok) return { added: 0, errors: [res.error] };
 
   const now = nowForCheck();
   const checks = res.quotes.map((q) => ({
     checkedAt: now,
     symbol: q.symbol,
+    market: q.market,
     price: jitterValue(q.price),
   }));
   await store.appendStockChecks(checks);
 
+  // A market that errored outright is reported once; only flag symbols
+  // missing from markets that answered.
   const missing = tracked
-    .filter((t) => !res.quotes.some((q) => q.symbol === t.symbol))
+    .filter(
+      (t) =>
+        !res.errors[t.market] &&
+        !res.quotes.some((q) => q.market === t.market && q.symbol === t.symbol),
+    )
     .map((t) => t.symbol);
-  const errors =
-    missing.length > 0 ? [`No price returned for ${missing.join(", ")}.`] : [];
+  const errors = [
+    ...Object.values(res.errors),
+    ...(missing.length > 0 ? [`No price returned for ${missing.join(", ")}.`] : []),
+  ];
   return { added: checks.length, errors };
 }
 

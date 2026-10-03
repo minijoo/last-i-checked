@@ -1,13 +1,10 @@
-// Alpaca provider — pure fetch+parse, takes explicit credentials. Called by the
-// /api/stocks route handler (SW-reachable) and the lookupSymbol server action.
+// Alpaca provider (US market) — pure fetch+parse, takes explicit credentials.
+// Called via lib/stockQuotes.ts by the /api/stocks route handler and the
+// addStock server action.
 
-import type { Result, StockQuote, SymbolInfo } from "@/lib/types";
+import type { Result, StockQuote } from "@/lib/types";
 
 const DATA_BASE = "https://data.alpaca.markets";
-const TRADING_BASES = [
-  "https://api.alpaca.markets",
-  "https://paper-api.alpaca.markets",
-];
 
 export interface AlpacaCreds {
   key: string;
@@ -73,7 +70,7 @@ export async function fetchQuotes(
       const quotes: StockQuote[] = [];
       for (const sym of syms) {
         const price = snapshotPrice(snaps[sym]);
-        if (price !== undefined) quotes.push({ symbol: sym, price });
+        if (price !== undefined) quotes.push({ symbol: sym, market: "us", price });
       }
       return { ok: true, quotes };
     } catch (e) {
@@ -97,47 +94,13 @@ export async function fetchQuotes(
   return { ok: true, quotes: [...eq.quotes, ...cr.quotes] };
 }
 
-/** Validate a ticker and get its company name. */
-export async function lookupAsset(
-  symbol: string,
-  c: AlpacaCreds,
-): Promise<Result<{ info: SymbolInfo }>> {
+/**
+ * Symbols to try for a ticker typed into the add form. Crypto is typed
+ * "BTCUSD" (or "BTC/USD") but Alpaca only quotes the slash form, so a
+ * crypto-looking ticker is tried both ways; an equity quote wins if both hit.
+ */
+export function usCandidates(symbol: string): string[] {
   const s = symbol.trim().toUpperCase();
-  if (!/^[A-Z.\-]{1,10}$/.test(s)) {
-    return { ok: false, error: "That doesn't look like a ticker symbol." };
-  }
-  let lastStatus = "";
-  for (const base of TRADING_BASES) {
-    try {
-      const res = await fetch(`${base}/v2/assets/${s}`, {
-        headers: authHeaders(c),
-        cache: "no-store",
-      });
-      if (res.status === 404) {
-        return { ok: false, error: `No US equity found for "${s}".` };
-      }
-      if (res.status === 401 || res.status === 403) {
-        lastStatus = `${res.status} ${res.statusText}`;
-        continue; // wrong host for this key type — try the next base
-      }
-      if (!res.ok) {
-        return {
-          ok: false,
-          error: `Alpaca responded ${res.status} ${res.statusText}`,
-        };
-      }
-      const asset = (await res.json()) as { symbol: string; name?: string };
-      return { ok: true, info: { symbol: asset.symbol, name: asset.name ?? s } };
-    } catch (e) {
-      return {
-        ok: false,
-        error:
-          e instanceof Error ? e.message : "Network error contacting Alpaca",
-      };
-    }
-  }
-  return {
-    ok: false,
-    error: `Alpaca rejected the API keys (${lastStatus}). Check ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY.`,
-  };
+  const pair = /^([A-Z]{2,6})(USD|USDT|USDC|BTC)$/.exec(s);
+  return pair ? [s, `${pair[1]}/${pair[2]}`] : [s];
 }

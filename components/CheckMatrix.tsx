@@ -8,6 +8,8 @@ export interface NumRow {
   id: string;
   label: ReactNode;
   columns: NumColumn[]; // newest first, from toColumns()
+  format?: (n: number) => string; // overrides the table's `format` for this row
+  digits?: number; // overrides the table's `digits` for this row
 }
 
 const cellBlank = <span className="text-muted">·</span>;
@@ -108,6 +110,7 @@ export function NumMatrix({
     <Shell axis={axis}>
       {rows.map((r) => {
         const byKey = new Map(r.columns.map((c) => [c.key, c]));
+        const fmt = r.format ?? format;
         return (
           <tr key={r.id} className="border-t border-border">
             <th className={rowHeadClass}>{r.label}</th>
@@ -128,15 +131,15 @@ export function NumMatrix({
               const title =
                 cell.delta === null
                   ? `First recorded check, ${formatStamp(cell.at)}`
-                  : `${format(cell.value)} on ${cell.label}${
+                  : `${fmt(cell.value)} on ${cell.label}${
                       older
-                        ? ` vs ${format(older.value)} on ${older.label}`
+                        ? ` vs ${fmt(older.value)} on ${older.label}`
                         : ""
                     }`;
               return (
                 <td key={c.key} title={title} className="px-2 py-2 text-center">
                   <div className="font-mono tabular-nums">
-                    {format(cell.value)}
+                    {fmt(cell.value)}
                   </div>
                   <div className="text-xs">
                     {percent ? (
@@ -144,7 +147,10 @@ export function NumMatrix({
                     ) : (
                       <Delta
                         value={cell.delta}
-                        digits={typeof digits === "function" ? digits(cell.value) : digits}
+                        digits={
+                          r.digits ??
+                          (typeof digits === "function" ? digits(cell.value) : digits)
+                        }
                       />
                     )}
                   </div>

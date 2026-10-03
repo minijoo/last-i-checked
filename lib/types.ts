@@ -3,12 +3,16 @@
 
 import type { NumberExtractMethod } from "./customExtract";
 
+/** Which exchange a ticker lives on — picks the quote provider. */
+export type StockMarket = "us" | "kr";
+
 /** One row per fetch, per symbol. Append-only. */
 export interface StockCheck {
   id?: number; // auto-increment PK (absent until persisted)
   checkedAt: number; // epoch ms
   symbol: string;
-  price: number; // price at this fetch
+  market: StockMarket; // snapshot of TrackedStock.market
+  price: number; // price at this fetch, in the market's currency (USD / KRW)
 }
 
 /** One row per fetch, per (location, date). Append-only. */
@@ -28,7 +32,9 @@ export interface WeatherCheck {
 
 /** Registry: stock symbols the user is tracking right now. */
 export interface TrackedStock {
-  symbol: string; // PK
+  symbol: string; // PK — US tickers are letters, KR codes start with a digit
+  market: StockMarket;
+  name?: string; // company name when the provider returns one (KR does)
   addedAt: number; // epoch ms
 }
 
@@ -215,7 +221,9 @@ export interface LocationRef {
 
 export interface StockQuote {
   symbol: string;
+  market: StockMarket;
   price: number;
+  name?: string; // KR only — Alpaca snapshots carry no name
 }
 
 export interface CurrencyQuote {
@@ -229,11 +237,6 @@ export interface CurrencyQuote {
 export interface CurrencyInfo {
   code: string; // ISO 4217, "USD"
   name: string; // "United States Dollar"
-}
-
-export interface SymbolInfo {
-  symbol: string;
-  name: string;
 }
 
 /** One day of weather, normalized from either OpenWeather endpoint. */

@@ -16,6 +16,7 @@ import type {
   Setting,
   SportsbookCheck,
   StockCheck,
+  StockMarket,
   TrackedCurrency,
   TrackedCustom,
   TrackedForecast,
@@ -61,7 +62,7 @@ if (typeof indexedDB !== "undefined") {
 export interface Store {
   // --- stocks: registry ---
   getTrackedStocks(): Promise<TrackedStock[]>;
-  addTrackedStock(symbol: string): Promise<void>;
+  addTrackedStock(stock: Omit<TrackedStock, "addedAt">): Promise<void>;
   removeTrackedStock(symbol: string): Promise<void>;
 
   // --- stocks: append-only checks ---
@@ -130,10 +131,10 @@ class LocalStore implements Store {
     return getDb().trackedStocks.orderBy("symbol").reverse().toArray();
   }
 
-  async addTrackedStock(symbol: string): Promise<void> {
-    const s = symbol.trim().toUpperCase();
-    if (!s) return;
-    await getDb().trackedStocks.put({ symbol: s, addedAt: Date.now() });
+  async addTrackedStock(stock: Omit<TrackedStock, "addedAt">): Promise<void> {
+    const symbol = stock.symbol.trim().toUpperCase();
+    if (!symbol) return;
+    await getDb().trackedStocks.put({ ...stock, symbol, addedAt: Date.now() });
   }
 
   async removeTrackedStock(symbol: string): Promise<void> {
@@ -446,9 +447,14 @@ class LocalStore implements Store {
             delete copy.id;
             return copy;
           });
-        await db.stockChecks.bulkAdd(strip(blob.stockChecks ?? []));
+        // Backups from before stocks had a market are all US.
+        const withMarket = <T extends { market?: StockMarket }>(rows: T[]) =>
+          rows.map((row) => ({ ...row, market: row.market ?? "us" }));
+        await db.stockChecks.bulkAdd(
+          withMarket(strip(blob.stockChecks ?? [])) as StockCheck[],
+        );
         await db.weatherChecks.bulkAdd(strip(blob.weatherChecks ?? []));
-        await db.trackedStocks.bulkPut(blob.trackedStocks ?? []);
+        await db.trackedStocks.bulkPut(withMarket(blob.trackedStocks ?? []));
         await db.trackedForecasts.bulkPut(
           strip(blob.trackedForecasts ?? []) as TrackedForecast[],
         );

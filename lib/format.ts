@@ -12,23 +12,27 @@ export function formatPrice(n: number): string {
 export const MARKET_LABEL: Record<StockMarket, string> = {
   us: "U.S. Markets",
   kr: "Korean Markets",
+  jp: "Japanese Markets",
 };
 
 /** Short tag shown beside a non-US stock's code, e.g. "(KR · 005930)". */
 export const MARKET_TAG: Record<StockMarket, string> = {
   us: "US",
   kr: "KR",
+  jp: "JP",
 };
 
-/** Decimals a stock price is shown with: won has no minor unit in practice. */
+/** Decimals a stock price is shown with: won has no minor unit in practice;
+ *  yen is mostly whole, but some TSE stocks tick in ¥0.1 (e.g. 262.3). */
 export function stockDigits(market: StockMarket): number {
-  return market === "us" ? 2 : 0;
+  return market === "us" ? 2 : market === "jp" ? 1 : 0;
 }
 
 export function formatStockPrice(n: number, market: StockMarket): string {
   const d = stockDigits(market);
   return n.toLocaleString(undefined, {
-    minimumFractionDigits: d,
+    // Yen drops the ".0" on whole prices: 3,102 rather than 3,102.0.
+    minimumFractionDigits: market === "jp" ? 0 : d,
     maximumFractionDigits: d,
   });
 }

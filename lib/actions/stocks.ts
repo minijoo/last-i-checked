@@ -26,6 +26,23 @@ export async function fetchNewStock(
       : { ok: false, error: `No Korean listing found for "${s}".` };
   }
 
+  if (market === "jp") {
+    // Accept Yahoo's "7203.T" form too; the bare code is what's stored.
+    const code = s.replace(/\.T$/, "");
+    if (!/^[0-9][0-9A-Z]{3}$/.test(code)) {
+      return {
+        ok: false,
+        error: "Japanese tickers are 4-character Tokyo codes, e.g. 7203 or 285A.",
+      };
+    }
+    const res = await quotesFor("jp", [code]);
+    if (!res.ok) return res;
+    const quote = res.quotes[0];
+    return quote
+      ? { ok: true, quote }
+      : { ok: false, error: `No Tokyo listing found for "${code}".` };
+  }
+
   if (!/^[A-Z.\-/]{1,12}$/.test(s)) {
     return { ok: false, error: "That doesn't look like a ticker symbol." };
   }

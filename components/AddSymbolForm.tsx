@@ -85,6 +85,12 @@ export function AddSymbolForm() {
             <br />
             Prices are the latest daily close, in won.
           </>
+        ) : market === "jp" ? (
+          <>
+            Tokyo Stock Exchange codes: e.g. 7203 (Toyota), 285A (Kioxia)
+            <br />
+            Prices are delayed during trading hours, in yen.
+          </>
         ) : (
           <>
             Stocks: e.g. AAPL, NVDA

@@ -31,7 +31,7 @@ export default function StocksPage() {
       label: (
         <span className="flex items-baseline gap-2">
           {t.market !== "us" && t.name ? (
-            // KR codes are opaque, so the company name leads.
+            // KR / JP codes are opaque, so the company name leads.
             <Link
               href={`/stocks/${t.symbol}`}
               className="flex flex-col leading-tight hover:underline"

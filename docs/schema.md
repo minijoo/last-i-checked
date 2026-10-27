@@ -35,14 +35,14 @@
 ## Record types
 
 ```ts
-type StockMarket = "us" | "kr"; // picks the provider: Alpaca / data.go.kr
+type StockMarket = "us" | "kr" | "jp"; // picks the provider: Alpaca / data.go.kr / Yahoo
 
 interface StockCheck {        // one row per fetch, per symbol; append-only
   id: number;                 // auto-increment PK
   checkedAt: number;          // epoch ms
   symbol: string;
   market: StockMarket;        // snapshot of TrackedStock.market
-  price: number;              // price at this fetch, in the market's currency (USD / KRW)
+  price: number;              // price at this fetch, in the market's currency (USD / KRW / JPY)
 }
 
 interface WeatherCheck {      // one row per fetch, per (location, date); append-only
@@ -62,10 +62,11 @@ interface WeatherCheck {      // one row per fetch, per (location, date); append
 }
 
 interface TrackedStock {      // registry: symbols tracked right now
-  symbol: string;             // PK — US tickers are letters, KR codes start with a
+  symbol: string;             // PK — US tickers are letters; KR (6-char) and JP
+                              // (4-char, stored without ".T") codes start with a
                               // digit, so one key space serves every market
   market: StockMarket;        // which provider re-fetches it
-  name?: string;              // company name, when the provider returns one (KR)
+  name?: string;              // company name, when the provider returns one (KR, JP)
   addedAt: number;            // epoch ms
 }
 

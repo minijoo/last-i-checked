@@ -1,6 +1,7 @@
 // Server-only: routes a market's symbols to its provider with credentials from
 // the environment. Shared by the /api/stocks route and the addStock action.
 
+import { fetchJpQuotes } from "@/lib/providers/jpStocks";
 import { fetchKrQuotes } from "@/lib/providers/krStocks";
 import { fetchQuotes } from "@/lib/providers/stocks";
 import type { Result, StockMarket, StockQuote } from "@/lib/types";
@@ -20,6 +21,7 @@ export async function quotesFor(
     if (!key) return { ok: false, error: NO_KR_KEY };
     return fetchKrQuotes(symbols, key);
   }
+  if (market === "jp") return fetchJpQuotes(symbols);
   const key = process.env.ALPACA_API_KEY_ID;
   const secret = process.env.ALPACA_API_SECRET_KEY;
   if (!key || !secret) return { ok: false, error: NO_ALPACA_KEYS };

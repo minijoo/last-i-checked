@@ -4,7 +4,7 @@
 import type { NumberExtractMethod } from "./customExtract";
 
 /** Which exchange a ticker lives on — picks the quote provider. */
-export type StockMarket = "us" | "kr";
+export type StockMarket = "us" | "kr" | "jp";
 
 /** One row per fetch, per symbol. Append-only. */
 export interface StockCheck {
@@ -12,7 +12,7 @@ export interface StockCheck {
   checkedAt: number; // epoch ms
   symbol: string;
   market: StockMarket; // snapshot of TrackedStock.market
-  price: number; // price at this fetch, in the market's currency (USD / KRW)
+  price: number; // price at this fetch, in the market's currency (USD / KRW / JPY)
 }
 
 /** One row per fetch, per (location, date). Append-only. */
@@ -32,9 +32,10 @@ export interface WeatherCheck {
 
 /** Registry: stock symbols the user is tracking right now. */
 export interface TrackedStock {
-  symbol: string; // PK — US tickers are letters, KR codes start with a digit
+  symbol: string; // PK — US tickers are letters; KR (6-char) and JP (4-char)
+  //                 codes start with a digit, so lengths keep them apart
   market: StockMarket;
-  name?: string; // company name when the provider returns one (KR does)
+  name?: string; // company name when the provider returns one (KR, JP)
   addedAt: number; // epoch ms
 }
 

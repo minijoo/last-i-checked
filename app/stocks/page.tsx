@@ -29,29 +29,39 @@ export default function StocksPage() {
     return (tracked ?? []).map((t) => ({
       id: t.symbol,
       label: (
-        <span className="flex items-baseline gap-2">
-          {t.market !== "us" && t.name ? (
-            // KR / JP codes are opaque, so the company name leads.
-            <Link
-              href={`/stocks/${t.symbol}`}
-              className="flex flex-col leading-tight hover:underline"
-            >
-              <span className="text-lg font-semibold">{t.name}</span>
-              <span className="text-xs text-muted">
-                ({MARKET_TAG[t.market]} · {t.symbol})
-              </span>
-            </Link>
-          ) : (
-            <Link
-              href={`/stocks/${t.symbol}`}
-              className="font-mono font-semibold hover:underline"
-            >
-              {t.symbol}
-            </Link>
-          )}
+        // Fixed width so a long company name scrolls inside its own cell
+        // instead of widening the column; × stays pinned at the right edge.
+        <span className="flex w-20 items-start gap-2">
+          <span className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]">
+            {t.market !== "us" && t.name ? (
+              // KR / JP codes are opaque, so the company name leads.
+              <Link
+                href={`/stocks/${t.symbol}`}
+                className="flex flex-col leading-tight hover:underline"
+              >
+                {/* Hangul falls back to a system font that renders larger
+                    than Geist at the same size, so KR steps down a pixel. */}
+                <span
+                  className={`font-semibold ${t.market === "kr" ? "text-[13px]" : "text-sm"}`}
+                >
+                  {t.name}
+                </span>
+                <span className="text-xs text-muted">
+                  ({MARKET_TAG[t.market]} · {t.symbol})
+                </span>
+              </Link>
+            ) : (
+              <Link
+                href={`/stocks/${t.symbol}`}
+                className="font-mono font-semibold hover:underline"
+              >
+                {t.symbol}
+              </Link>
+            )}
+          </span>
           <button
             onClick={() => store.removeTrackedStock(t.symbol)}
-            className="text-xs text-muted hover:text-down"
+            className="shrink-0 text-xs text-muted hover:text-down"
             title="Stop tracking (keeps history)"
           >
             ×

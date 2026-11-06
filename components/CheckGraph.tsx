@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatStamp } from "@/lib/format";
+import { formatStamp, groupZeros } from "@/lib/format";
 
 export interface GraphPoint {
   t: number; // epoch ms
@@ -63,6 +63,8 @@ interface TipSeries {
   digits: number;
   unit: string;
   color: string;
+  /** Value formatter; when set, deltas also get their leading zeros grouped. */
+  format?: (n: number) => string;
 }
 
 /**
@@ -112,11 +114,14 @@ function ChangeTooltip({
           <div key={s.dataKey} style={{ marginTop: 4 }}>
             <div style={{ color: s.color }}>
               {showNames ? `${s.name}: ` : ""}
-              {val.toFixed(s.digits)}
+              {s.format ? s.format(val) : val.toFixed(s.digits)}
               {s.unit}
             </div>
             <div style={{ color: deltaColor(diff) }}>
-              {deltaArrow(diff)} {signed(diff, s.digits, s.unit)}
+              {deltaArrow(diff)}{" "}
+              {s.format
+                ? groupZeros(signed(diff, s.digits)) + s.unit
+                : signed(diff, s.digits, s.unit)}
               {pct === null ? "" : ` (${signed(pct, 2, "%")})`}
             </div>
           </div>
@@ -131,10 +136,13 @@ export function CheckGraph({
   points,
   unit = "",
   digits = 2,
+  format,
 }: {
   points: GraphPoint[];
   unit?: string;
   digits?: number;
+  /** Axis + tooltip value formatter (e.g. crypto's "0.0₇1235"); else toFixed(digits). */
+  format?: (n: number) => string;
 }) {
   if (points.length < 2) {
     return (
@@ -163,9 +171,9 @@ export function CheckGraph({
             minTickGap={40}
           />
           <YAxis
-            width={48}
+            width={format ? 64 : 48}
             domain={["auto", "auto"]}
-            tickFormatter={(v) => `${Number(v).toFixed(digits)}`}
+            tickFormatter={(v) => (format ? format(Number(v)) : Number(v).toFixed(digits))}
             tick={{ fill: "var(--muted)", fontSize: 11 }}
             stroke="var(--border)"
           />
@@ -179,6 +187,7 @@ export function CheckGraph({
                     digits,
                     unit,
                     color: "var(--foreground)",
+                    format,
                   },
                 ]}
                 current={current}

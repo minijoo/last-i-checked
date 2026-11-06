@@ -2,6 +2,7 @@
 // external APIs (via the /api/* route handlers) and append checks through the
 // store.
 
+import { displaySymbol } from "./cryptoKey";
 import { extractNumber } from "./customExtract";
 import { jitterCustom, jitterOdds, jitterValue, nowForCheck } from "./devtime";
 import { calKeyToIso, todayCalendarKeys } from "./format";
@@ -93,7 +94,7 @@ export async function runStockFetch(): Promise<FetchOutcome> {
         !res.errors[t.market] &&
         !res.quotes.some((q) => q.market === t.market && q.symbol === t.symbol),
     )
-    .map((t) => t.symbol);
+    .map((t) => displaySymbol(t.symbol, t.market));
   const errors = [
     ...Object.values(res.errors),
     ...(missing.length > 0 ? [`No price returned for ${missing.join(", ")}.`] : []),

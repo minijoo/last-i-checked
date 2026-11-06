@@ -9,7 +9,8 @@ export interface NumRow {
   label: ReactNode;
   columns: NumColumn[]; // newest first, from toColumns()
   format?: (n: number) => string; // overrides the table's `format` for this row
-  digits?: number; // overrides the table's `digits` for this row
+  digits?: number | ((value: number) => number); // overrides the table's `digits`; per-cell when a function
+  groupZeros?: boolean; // collapse long leading-zero runs in deltas (crypto)
 }
 
 const cellBlank = <span className="text-muted">·</span>;
@@ -147,10 +148,11 @@ export function NumMatrix({
                     ) : (
                       <Delta
                         value={cell.delta}
-                        digits={
-                          r.digits ??
-                          (typeof digits === "function" ? digits(cell.value) : digits)
-                        }
+                        digits={(() => {
+                          const d = r.digits ?? digits;
+                          return typeof d === "function" ? d(cell.value) : d;
+                        })()}
+                        groupZeros={r.groupZeros}
                       />
                     )}
                   </div>

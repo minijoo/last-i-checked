@@ -8,8 +8,9 @@ import { FetchBar } from "@/components/FetchBar";
 import { Card, SectionTitle } from "@/components/ui";
 import { toColumns } from "@/lib/buckets";
 import { runStockFetch } from "@/lib/fetchers";
+import { displaySymbol } from "@/lib/cryptoKey";
 import { formatStamp, formatStockPrice, stockDigits } from "@/lib/format";
-import { useStockChecks } from "@/lib/hooks";
+import { useStockChecks, useTrackedStocks } from "@/lib/hooks";
 
 export default function StockDetailPage({
   params,
@@ -19,6 +20,7 @@ export default function StockDetailPage({
   const { symbol: raw } = use(params);
   const symbol = decodeURIComponent(raw).toUpperCase();
   const checks = useStockChecks(symbol);
+  const tracked = useTrackedStocks()?.find((t) => t.symbol === symbol);
 
   const points = useMemo(
     () => (checks ?? []).map((c) => ({ t: c.checkedAt, v: c.price })),
@@ -33,7 +35,8 @@ export default function StockDetailPage({
     [checks],
   );
   const latest = checks && checks.length > 0 ? checks[checks.length - 1] : null;
-  const market = latest?.market ?? "us";
+  const market = latest?.market ?? tracked?.market ?? "us";
+  const shown = displaySymbol(symbol, market);
   const formatPrice = (n: number) => formatStockPrice(n, market);
 
   return (
@@ -44,7 +47,10 @@ export default function StockDetailPage({
         </Link>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-mono text-2xl font-semibold">{symbol}</h1>
+            <h1 className="font-mono text-2xl font-semibold">{shown}</h1>
+            {tracked?.name && market !== "us" && (
+              <p className="mt-0.5 text-sm">{tracked.name}</p>
+            )}
             {latest && (
               <p className="mt-1 text-sm text-muted">
                 {formatPrice(latest.price)} · as of {formatStamp(latest.checkedAt)}
@@ -60,7 +66,7 @@ export default function StockDetailPage({
       ) : checks.length === 0 ? (
         <Card>
           <p className="text-sm text-muted">
-            No checks recorded for {symbol} yet.
+            No checks recorded for {shown} yet.
           </p>
         </Card>
       ) : (
@@ -68,7 +74,11 @@ export default function StockDetailPage({
           <section className="flex flex-col gap-2">
             <SectionTitle>Every check</SectionTitle>
             <Card>
-              <CheckGraph points={points} />
+              <CheckGraph
+                points={points}
+                digits={market === "crypto" ? stockDigits(market, latest?.price) : undefined}
+                format={market === "crypto" ? formatPrice : undefined}
+              />
             </Card>
           </section>
           <section className="flex flex-col gap-2">
@@ -76,7 +86,8 @@ export default function StockDetailPage({
             <DeltaColumns
               columns={columns}
               format={formatPrice}
-              digits={stockDigits(market)}
+              digits={(v) => stockDigits(market, v)}
+              groupZeros={market === "crypto"}
             />
           </section>
           <section className="flex flex-col gap-2">

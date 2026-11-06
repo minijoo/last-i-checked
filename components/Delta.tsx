@@ -1,20 +1,23 @@
-import { formatDelta } from "@/lib/format";
+import { formatDelta, groupZeros as collapseZeros } from "@/lib/format";
 
 /** A signed delta: green ▲ up, red ▼ down, grey flat, "—" when there's no
  *  baseline. `digits` is the precision; with `trimZeros` it's a cap and
  *  trailing zeros are dropped (e.g. custom checks tracking batting average).
- *  `suffix` is appended to the number (e.g. "%" for percent-change mode). */
+ *  `suffix` is appended to the number (e.g. "%" for percent-change mode).
+ *  `groupZeros` collapses a long run of leading zeros ("+0.0₇6"), for crypto. */
 export function Delta({
   value,
   digits = 2,
   trimZeros = false,
   suffix = "",
+  groupZeros = false,
   className = "",
 }: {
   value: number | null;
   digits?: number;
   trimZeros?: boolean;
   suffix?: string;
+  groupZeros?: boolean;
   className?: string;
 }) {
   if (value === null) {
@@ -27,12 +30,13 @@ export function Delta({
   const color =
     dir === "up" ? "text-up" : dir === "down" ? "text-down" : "text-muted";
   const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "▬";
-  const body =
+  const raw =
     dir === "flat"
       ? trimZeros
         ? "0"
         : (0).toFixed(digits)
       : formatDelta(shown, digits, trimZeros);
+  const body = groupZeros ? collapseZeros(raw) : raw;
   return (
     <span className={`tabular-nums ${color} ${className}`}>
       <span aria-hidden className="text-[0.85em]">

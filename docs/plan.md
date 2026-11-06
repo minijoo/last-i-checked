@@ -274,6 +274,16 @@ _High-level only; details go in `docs/schema.md`._
       `GET https://data.alpaca.markets/v2/stocks/snapshots?symbols=AAPL,TSLA,MSFT,GOOGL`
     - Can retrieve in bulk.
     - Response is JSON. Stock price will be `latestTrade.p`
+    - US equities only. Crypto moved to CoinMarketCap (below).
+- Crypto: CoinMarketCap Pro API (`CMC_API_KEY`, header `X-CMC_PRO_API_KEY`).
+    - **Ticker → coins:** `GET /v1/cryptocurrency/map?symbol=DRB` (0 credits). A
+      ticker often names several coins ("BTC" → 16), so the add form lists the
+      active ones by rank in a pick-a-coin modal (name + chain); one match adds
+      directly. An unknown ticker comes back as a 400 `Invalid value for "symbol"`.
+    - **Prices:** `GET /v3/cryptocurrency/quotes/latest?id=1,41909&convert=USD`
+      (1 credit per 250 coins). Price is `data[].quote[symbol=USD].price`.
+    - Shown with 2 decimals at or above $1, else 4 significant digits; 4+
+      leading zeros collapse to a subscript count (`0.0₇1235`).
 - Currency: Frankfurter API (ECB reference rates) — public, **no key**. See
   `docs/currency.md`.
     - **Currency list (dropdown options):**

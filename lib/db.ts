@@ -56,6 +56,17 @@ export class LicDatabase extends Dexie {
         await tx.table("trackedStocks").toCollection().modify(setUs);
         await tx.table("stockChecks").toCollection().modify(setUs);
       });
+    // Crypto moved off Alpaca to its own CoinMarketCap market. Alpaca pairs
+    // ("BTC/USD") keep their key — history stays joined — and resolve by ticker.
+    this.version(4)
+      .stores({})
+      .upgrade(async (tx) => {
+        const toCrypto = (row: { symbol: string; market?: string }) => {
+          if (row.market === "us" && row.symbol.includes("/")) row.market = "crypto";
+        };
+        await tx.table("trackedStocks").toCollection().modify(toCrypto);
+        await tx.table("stockChecks").toCollection().modify(toCrypto);
+      });
   }
 }
 

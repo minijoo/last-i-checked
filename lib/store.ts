@@ -64,6 +64,8 @@ export interface Store {
   getTrackedStocks(): Promise<TrackedStock[]>;
   addTrackedStock(stock: Omit<TrackedStock, "addedAt">): Promise<void>;
   removeTrackedStock(symbol: string): Promise<void>;
+  /** Swap a tracked stock with its neighbour above / below in the list. */
+  moveTrackedStock(symbol: string, dir: "up" | "down"): Promise<void>;
 
   // --- stocks: append-only checks ---
   appendStockChecks(checks: Array<Omit<StockCheck, "id">>): Promise<void>;
@@ -126,15 +128,49 @@ export interface Store {
   importAll(blob: BackupBlob, mode: "replace" | "merge"): Promise<void>;
 }
 
+/** Manual order first (`order` ascending); rows never reordered keep their
+ *  incoming order (stable sort) and sit after the ordered ones. */
+function sortByOrder<T extends { order?: number }>(rows: T[]): T[] {
+  return [...rows].sort(
+    (a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || 0,
+  );
+}
+
 class LocalStore implements Store {
-  getTrackedStocks(): Promise<TrackedStock[]> {
-    return getDb().trackedStocks.orderBy("symbol").reverse().toArray();
+  async getTrackedStocks(): Promise<TrackedStock[]> {
+    const rows = await getDb().trackedStocks.orderBy("symbol").reverse().toArray();
+    return sortByOrder(rows);
   }
 
   async addTrackedStock(stock: Omit<TrackedStock, "addedAt">): Promise<void> {
     const symbol = stock.symbol.trim().toUpperCase();
     if (!symbol) return;
-    await getDb().trackedStocks.put({ ...stock, symbol, addedAt: Date.now() });
+    const db = getDb();
+    await db.transaction("rw", db.trackedStocks, async () => {
+      // Re-adding keeps its place; a new stock goes to the top.
+      const existing = await db.trackedStocks.get(symbol);
+      const orders = (await db.trackedStocks.toArray())
+        .map((r) => r.order)
+        .filter((o): o is number => o !== undefined);
+      const order =
+        existing?.order ?? (orders.length > 0 ? Math.min(...orders) - 1 : undefined);
+      await db.trackedStocks.put({ ...stock, symbol, order, addedAt: Date.now() });
+    });
+  }
+
+  async moveTrackedStock(symbol: string, dir: "up" | "down"): Promise<void> {
+    const db = getDb();
+    await db.transaction("rw", db.trackedStocks, async () => {
+      const rows = sortByOrder(
+        await db.trackedStocks.orderBy("symbol").reverse().toArray(),
+      );
+      const i = rows.findIndex((r) => r.symbol === symbol);
+      const j = dir === "up" ? i - 1 : i + 1;
+      if (i < 0 || j < 0 || j >= rows.length) return;
+      [rows[i], rows[j]] = [rows[j], rows[i]];
+      // Renumber everything, so rows that never had an order get one too.
+      await db.trackedStocks.bulkPut(rows.map((r, k) => ({ ...r, order: k })));
+    });
   }
 
   async removeTrackedStock(symbol: string): Promise<void> {
@@ -447,9 +483,18 @@ class LocalStore implements Store {
             delete copy.id;
             return copy;
           });
-        // Backups from before stocks had a market are all US.
-        const withMarket = <T extends { market?: StockMarket }>(rows: T[]) =>
-          rows.map((row) => ({ ...row, market: row.market ?? "us" }));
+        // Backups from before stocks had a market are all US; Alpaca crypto
+        // pairs ("BTC/USD") from before the CMC switch are Crypto (db v4).
+        const withMarket = <T extends { symbol: string; market?: StockMarket }>(
+          rows: T[],
+        ) =>
+          rows.map((row) => {
+            const market = row.market ?? "us";
+            return {
+              ...row,
+              market: market === "us" && row.symbol.includes("/") ? "crypto" : market,
+            };
+          });
         await db.stockChecks.bulkAdd(
           withMarket(strip(blob.stockChecks ?? [])) as StockCheck[],
         );

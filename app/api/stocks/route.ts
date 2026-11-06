@@ -2,7 +2,7 @@
 // so concurrent fetches don't serialize behind Next's action dispatcher; keeps
 // provider keys server-side.
 //
-// GET /api/stocks?us=AAPL,BTC/USD&kr=005930 — one param per market. Markets
+// GET /api/stocks?us=AAPL&kr=005930&crypto=DRB-41909 — one param per market. Markets
 // fail independently: a failure lands in `errors[market]` and the other
 // markets' quotes still come back.
 

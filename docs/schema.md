@@ -35,7 +35,7 @@
 ## Record types
 
 ```ts
-type StockMarket = "us" | "kr" | "jp"; // picks the provider: Alpaca / data.go.kr / Yahoo
+type StockMarket = "us" | "kr" | "jp" | "crypto"; // picks the provider: Alpaca / data.go.kr / Yahoo / CoinMarketCap
 
 interface StockCheck {        // one row per fetch, per symbol; append-only
   id: number;                 // auto-increment PK
@@ -64,9 +64,16 @@ interface WeatherCheck {      // one row per fetch, per (location, date); append
 interface TrackedStock {      // registry: symbols tracked right now
   symbol: string;             // PK — US tickers are letters; KR (6-char) and JP
                               // (4-char, stored without ".T") codes start with a
-                              // digit, so one key space serves every market
+                              // digit, so one key space serves every market.
+                              // Crypto is "TICKER-CMCID" ("DRB-41909"): tickers
+                              // aren't unique across coins or vs. US stocks.
+                              // Pre-CMC Alpaca pairs ("BTC/USD") were moved to
+                              // "crypto" as-is by db v4 and resolve by ticker.
   market: StockMarket;        // which provider re-fetches it
-  name?: string;              // company name, when the provider returns one (KR, JP)
+  name?: string;              // company / coin name, when the provider returns one (KR, JP, crypto)
+  order?: number;             // Stocks-page position, ascending; set by the ↑/↓
+                              // arrows (and on add: new rows go to the top).
+                              // Unset rows sort after, by symbol descending.
   addedAt: number;            // epoch ms
 }
 

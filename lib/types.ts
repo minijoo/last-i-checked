@@ -4,7 +4,7 @@
 import type { NumberExtractMethod } from "./customExtract";
 
 /** Which exchange a ticker lives on — picks the quote provider. */
-export type StockMarket = "us" | "kr" | "jp";
+export type StockMarket = "us" | "kr" | "jp" | "crypto";
 
 /** One row per fetch, per symbol. Append-only. */
 export interface StockCheck {
@@ -12,7 +12,7 @@ export interface StockCheck {
   checkedAt: number; // epoch ms
   symbol: string;
   market: StockMarket; // snapshot of TrackedStock.market
-  price: number; // price at this fetch, in the market's currency (USD / KRW / JPY)
+  price: number; // price at this fetch, in the market's currency (USD / KRW / JPY; crypto in USD)
 }
 
 /** One row per fetch, per (location, date). Append-only. */
@@ -33,9 +33,12 @@ export interface WeatherCheck {
 /** Registry: stock symbols the user is tracking right now. */
 export interface TrackedStock {
   symbol: string; // PK — US tickers are letters; KR (6-char) and JP (4-char)
-  //                 codes start with a digit, so lengths keep them apart
+  //                 codes start with a digit, so lengths keep them apart.
+  //                 Crypto is "TICKER-CMCID" ("DRB-41909"): tickers aren't
+  //                 unique across coins (or vs. US stocks), CMC ids are.
   market: StockMarket;
-  name?: string; // company name when the provider returns one (KR, JP)
+  name?: string; // company / coin name when the provider returns one (KR, JP, crypto)
+  order?: number; // position on the Stocks page, ascending; absent until reordered
   addedAt: number; // epoch ms
 }
 
@@ -224,7 +227,16 @@ export interface StockQuote {
   symbol: string;
   market: StockMarket;
   price: number;
-  name?: string; // KR only — Alpaca snapshots carry no name
+  name?: string; // KR, JP, crypto — Alpaca snapshots carry no name
+}
+
+/** One CoinMarketCap match for a ticker — what the "pick a coin" list shows. */
+export interface CoinMatch {
+  id: number; // CMC id
+  symbol: string; // ticker, e.g. "DRB"
+  name: string; // "DebtReliefBot"
+  chain: string; // platform name ("Base"), or the coin's own name for an L1
+  rank: number | null; // CMC rank; null when unranked
 }
 
 export interface CurrencyQuote {

@@ -65,3 +65,29 @@ test("limit keeps the newest columns", () => {
 test("empty input yields no columns", () => {
   assert.deepEqual(toColumns([], "stock"), []);
 });
+
+test("toColumns: tiny deltas (sub-micro crypto prices) survive rounding", () => {
+  const day = 86_400_000;
+  const t = new Date(2026, 10, 6, 12).getTime();
+  const cols = toColumns(
+    [
+      { checkedAt: t - day, value: 0.000000012345 },
+      { checkedAt: t, value: 0.000000012411 },
+    ],
+    "stock",
+  );
+  assert.equal(cols[0].delta, 6.6e-11);
+});
+
+test("toColumns: float noise is still stripped from deltas", () => {
+  const day = 86_400_000;
+  const t = new Date(2026, 10, 6, 12).getTime();
+  const cols = toColumns(
+    [
+      { checkedAt: t - day, value: 0.1 },
+      { checkedAt: t, value: 0.3 },
+    ],
+    "stock",
+  );
+  assert.equal(cols[0].delta, 0.2);
+});

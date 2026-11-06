@@ -24,8 +24,10 @@ export interface NumColumn {
   delta: number | null; // value - previous column's value; null for oldest
 }
 
+/** Strips float noise (0.1 + 0.2 → 0.3) from a delta. Relative, not a fixed
+ *  number of decimals: crypto prices like 0.0000000123 move by ~1e-11. */
 function round(x: number): number {
-  return Math.round(x * 1e6) / 1e6;
+  return Number(x.toPrecision(10));
 }
 
 export function bucketKey(ts: number, domain: Domain): string {

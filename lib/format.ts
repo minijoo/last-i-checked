@@ -13,6 +13,7 @@ export const MARKET_LABEL: Record<StockMarket, string> = {
   us: "U.S. Markets",
   kr: "Korean Markets",
   jp: "Japanese Markets",
+  crypto: "Crypto",
 };
 
 /** Short tag shown beside a non-US stock's code, e.g. "(KR · 005930)". */
@@ -20,15 +21,57 @@ export const MARKET_TAG: Record<StockMarket, string> = {
   us: "US",
   kr: "KR",
   jp: "JP",
+  crypto: "Crypto",
 };
 
 /** Decimals a stock price is shown with: won has no minor unit in practice;
- *  yen is mostly whole, but some TSE stocks tick in ¥0.1 (e.g. 262.3). */
-export function stockDigits(market: StockMarket): number {
+ *  yen is mostly whole, but some TSE stocks tick in ¥0.1 (e.g. 262.3). Crypto
+ *  depends on the price itself — pass it, or get the ≥ $1 answer (2). */
+export function stockDigits(market: StockMarket, value?: number): number {
+  if (market === "crypto") return value === undefined ? 2 : cryptoDecimals(value);
   return market === "us" ? 2 : market === "jp" ? 1 : 0;
 }
 
+/** Decimals for a crypto price: 2 at or above $1, otherwise enough to show 4
+ *  significant digits — 0.5 → 4 ("0.5000"), 0.0001005 → 7, 0.00001234 → 8.
+ *  Rounds to 4 significant digits first, so 0.99996 lands on 2 ("1.00"). */
+export function cryptoDecimals(n: number): number {
+  const abs = Math.abs(n);
+  if (!Number.isFinite(abs) || abs === 0) return 2;
+  const r = Number(abs.toPrecision(4));
+  if (r >= 1) return 2;
+  return Math.min(20, 3 - Math.floor(Math.log10(r)));
+}
+
+const SUBSCRIPT = "₀₁₂₃₄₅₆₇₈₉";
+/** Leading zeros after the decimal point that get collapsed into a count. */
+const GROUP_ZEROS_FROM = 4;
+
+/** Collapses a long run of zeros right after "0." into a subscript count, the
+ *  usual crypto shorthand: "0.00001234" → "0.0₄1234", "+0.00000006" →
+ *  "+0.0₇6". Runs shorter than GROUP_ZEROS_FROM, and anything ≥ 1, pass through. */
+export function groupZeros(s: string): string {
+  const m = /^([+-]?0)\.(0+)(\d+)$/.exec(s);
+  if (!m || m[2].length < GROUP_ZEROS_FROM) return s;
+  const count = String(m[2].length)
+    .split("")
+    .map((d) => SUBSCRIPT[Number(d)])
+    .join("");
+  return `${m[1]}.0${count}${m[3]}`;
+}
+
+export function formatCryptoPrice(n: number): string {
+  const d = cryptoDecimals(n);
+  return groupZeros(
+    n.toLocaleString(undefined, {
+      minimumFractionDigits: d,
+      maximumFractionDigits: d,
+    }),
+  );
+}
+
 export function formatStockPrice(n: number, market: StockMarket): string {
+  if (market === "crypto") return formatCryptoPrice(n);
   const d = stockDigits(market);
   return n.toLocaleString(undefined, {
     // Yen drops the ".0" on whole prices: 3,102 rather than 3,102.0.

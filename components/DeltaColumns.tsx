@@ -11,11 +11,13 @@ export function DeltaColumns({
   columns,
   format = (n) => n.toFixed(2),
   digits = 2,
+  groupZeros = false,
   emptyLabel = "No checks yet.",
 }: {
   columns: NumColumn[];
   format?: (n: number) => string;
   digits?: number | ((value: number) => number);
+  groupZeros?: boolean; // collapse long leading-zero runs in deltas (crypto)
   emptyLabel?: string;
 }) {
   if (columns.length === 0) {
@@ -52,6 +54,7 @@ export function DeltaColumns({
               <Delta
                 value={c.delta}
                 digits={typeof digits === "function" ? digits(c.value) : digits}
+                groupZeros={groupZeros}
               />
             </div>
           </div>

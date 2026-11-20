@@ -41,8 +41,8 @@ meaning to those numbers.
   design in `docs/sportsbook.md`.
 - `CurrencyCheck` tracks one fiat exchange rate (`1 base = rate target`) for a
   `(base, target)` pair, matched to its `TrackedCurrency` registry row by the joined
-  `pair` string (`"USD/EUR"`). Behaves like Stocks (one number, one-day buckets) but
-  is entered with two dropdowns and has its own page; design in `docs/currency.md`.
+  `pair` string (`"USD/EUR"`). Like Stocks it is one number, but it uses one-day buckets,
+  is entered with two dropdowns, and has its own page; design in `docs/currency.md`.
 - The `StockCheck` / `WeatherCheck` stores are **append-only** in normal use: a fetch
   only inserts rows. Pruning old history is a later concern (see Open Questions).
 - What the user is *currently tracking* lives in separate **registry** stores
@@ -64,10 +64,10 @@ immediately previous one dilutes the delta to noise (`+0.02 since 12 seconds ago
 
 **Bucket the history, then compare bucket-to-bucket.**
 
-- A **bucket** is one distinct calendar day for stocks, currency and custom checks, or one
-  distinct half-day (split at local noon) for weather and sportsbook. Weather
-  forecasts for a fixed future date, and sportsbook lines, both genuinely move within
-  a day, so they get the finer bucket; stock price at this app's altitude does not.
+- A **bucket** is one distinct calendar day for currency and custom checks, or one
+  distinct half-day (split at local noon) for stocks, weather and sportsbook. Stock
+  prices, weather forecasts for a fixed future date, and sportsbook lines all
+  genuinely move within a day, so they get the finer bucket.
 - A bucket's **value** is its *last* check ("where it stood when I left off"). Re-fetching
   within the current bucket updates that value in place — it does not add a bucket — so
   mashing Fetch cannot move the deltas.
@@ -104,8 +104,8 @@ shared `M/D [AM|PM]` formatter and `lib/format.ts#formatClock` the `10:51PM` one
   is a plain number with a numeric delta.
 - The single-item detail page still plots **every raw check** on its graph; the columnar
   view is the list/home-screen summary. Every detail page also carries its own
-  columnar strip — titled **"By day, latest"** (stocks, custom) or **"By half-day,
-  latest"** (weather, sportsbook) — where each card shows the bucket's date, the time
+  columnar strip — titled **"By day, latest"** (currency, custom) or **"By half-day,
+  latest"** (stocks, weather, sportsbook) — where each card shows the bucket's date, the time
   of that bucket's latest check, the value, and the delta; and a **Full history**
   table of every raw check, newest first.
 - How many columns: a few on the list view, more on the detail page (exact counts TBD

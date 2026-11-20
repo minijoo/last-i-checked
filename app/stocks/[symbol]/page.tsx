@@ -77,7 +77,7 @@ export default function StockDetailPage({
             format={market === "crypto" ? formatPrice : undefined}
           />
           <section className="flex flex-col gap-2">
-            <SectionTitle>By day, latest</SectionTitle>
+            <SectionTitle>By half-day, latest</SectionTitle>
             <DeltaColumns
               columns={columns}
               format={formatPrice}

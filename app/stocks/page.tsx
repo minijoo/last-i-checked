@@ -106,7 +106,7 @@ export default function StocksPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Stocks</h1>
           <p className="mt-1 text-sm text-muted">
-            How each price has moved since the last day you checked.
+            How each price has moved since the last half-day you checked.
           </p>
         </div>
         <FetchBar onFetch={runStockFetch} label="Fetch prices" />
@@ -129,7 +129,8 @@ export default function StocksPage() {
             <NumMatrix rows={rows} percent={asPercent} />
           </MatrixFrame>
           <p className="mt-3 text-xs text-muted">
-            Columns are the days you fetched. A blank cell means no check that day
+            Columns are the half-days (AM/PM, split at noon) you fetched. A blank
+            cell means no check in that half-day
             (symbol added later, or untracked then re-tracked). Deltas compare
             each symbol against its own previous check; the{" "}
             <span className="text-foreground">%</span> toggle switches them

@@ -1,7 +1,7 @@
 // Delta-baseline bucketing. See docs/plan.md "Delta baseline".
 //
-// A bucket is one distinct calendar day (stocks) or one distinct half-day, split
-// at local noon (weather). A bucket's value is its LAST check. A column's delta is
+// A bucket is one distinct calendar day (currency, custom) or one distinct
+// half-day, split at local noon (stocks, weather, sportsbook). A bucket's value is its LAST check. A column's delta is
 // its value minus the next-older populated bucket's value. Newest column first;
 // the oldest shown column (and any first-ever check) has no delta.
 //
@@ -36,10 +36,10 @@ export function bucketKey(ts: number, domain: Domain): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   const base = `${y}-${m}-${day}`;
-  // weather forecasts and sportsbook odds both move meaningfully within a day
-  if (domain === "weather" || domain === "sportsbook")
+  // stock prices, weather forecasts and sportsbook odds all move meaningfully within a day
+  if (domain === "stock" || domain === "weather" || domain === "sportsbook")
     return d.getHours() < 12 ? `${base}-AM` : `${base}-PM`;
-  return base; // "stock", "currency" and "custom" bucket by calendar day
+  return base; // "currency" and "custom" bucket by calendar day
 }
 
 /** Absolute, compact label for a bucket key: "9/4", or "9/4 PM" for a

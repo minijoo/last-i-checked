@@ -5,7 +5,7 @@ import { toColumns } from "./buckets.ts";
 
 const at = (s: string) => new Date(s).getTime();
 
-test("stock: multiple checks in a day collapse to one column, last value wins", () => {
+test("currency: multiple checks in a day collapse to one column, last value wins", () => {
   const cols = toColumns(
     [
       { checkedAt: at("2026-08-24T10:00"), value: 100 },
@@ -13,7 +13,7 @@ test("stock: multiple checks in a day collapse to one column, last value wins", 
       { checkedAt: at("2026-08-28T16:00"), value: 102 },
       { checkedAt: at("2026-09-01T11:00"), value: 105 },
     ],
-    "stock",
+    "currency",
   );
   assert.equal(cols.length, 3);
   assert.deepEqual(
@@ -22,6 +22,25 @@ test("stock: multiple checks in a day collapse to one column, last value wins", 
       [105, 3],
       [102, 2],
       [100, null],
+    ],
+  );
+});
+
+test("stock: buckets split at local noon into AM/PM, last value wins", () => {
+  const cols = toColumns(
+    [
+      { checkedAt: at("2026-08-28T09:00"), value: 101 },
+      { checkedAt: at("2026-08-28T11:30"), value: 102 },
+      { checkedAt: at("2026-08-28T12:00"), value: 104 },
+      { checkedAt: at("2026-08-28T16:00"), value: 103 },
+    ],
+    "stock",
+  );
+  assert.deepEqual(
+    cols.map((c) => [c.label, c.value, c.delta]),
+    [
+      ["8/28 PM", 103, 1],
+      ["8/28 AM", 102, null],
     ],
   );
 });

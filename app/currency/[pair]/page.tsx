@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { use, useMemo } from "react";
 import { LuArrowRight } from "react-icons/lu";
-import { CheckGraph } from "@/components/CheckGraph";
+import { PlottedChecks } from "@/components/PlottedChecks";
 import { DeltaColumns } from "@/components/DeltaColumns";
 import { FetchBar } from "@/components/FetchBar";
 import { Card, SectionTitle } from "@/components/ui";
@@ -73,15 +73,10 @@ export default function CurrencyDetailPage({
         </Card>
       ) : (
         <>
-          <section className="flex flex-col gap-2">
-            <SectionTitle>Every check</SectionTitle>
-            <Card>
-              <CheckGraph
-                points={points}
-                digits={latest ? rateDecimals(latest.rate) : 4}
-              />
-            </Card>
-          </section>
+          <PlottedChecks
+            points={points}
+            digits={latest ? rateDecimals(latest.rate) : 4}
+          />
           <section className="flex flex-col gap-2">
             <SectionTitle>By day, latest</SectionTitle>
             <DeltaColumns

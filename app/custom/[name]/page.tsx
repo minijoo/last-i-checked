@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useMemo } from "react";
-import { CheckGraph } from "@/components/CheckGraph";
+import { PlottedChecks } from "@/components/PlottedChecks";
 import { CustomColumns } from "@/components/CustomColumns";
 import { FetchBar } from "@/components/FetchBar";
 import { Card, SectionTitle } from "@/components/ui";
@@ -83,14 +83,7 @@ export default function CustomDetailPage({
         </Card>
       ) : (
         <>
-          {points.length >= 2 && (
-            <section className="flex flex-col gap-2">
-              <SectionTitle>Graph</SectionTitle>
-              <Card>
-                <CheckGraph points={points} />
-              </Card>
-            </section>
-          )}
+          {points.length >= 2 && <PlottedChecks points={points} />}
 
           <section className="flex flex-col gap-2">
             <SectionTitle>By day, latest</SectionTitle>

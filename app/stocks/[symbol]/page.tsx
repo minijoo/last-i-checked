@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useMemo } from "react";
-import { CheckGraph } from "@/components/CheckGraph";
+import { PlottedChecks } from "@/components/PlottedChecks";
 import { DeltaColumns } from "@/components/DeltaColumns";
 import { FetchBar } from "@/components/FetchBar";
 import { Card, SectionTitle } from "@/components/ui";
@@ -71,16 +71,11 @@ export default function StockDetailPage({
         </Card>
       ) : (
         <>
-          <section className="flex flex-col gap-2">
-            <SectionTitle>Every check</SectionTitle>
-            <Card>
-              <CheckGraph
-                points={points}
-                digits={market === "crypto" ? stockDigits(market, latest?.price) : undefined}
-                format={market === "crypto" ? formatPrice : undefined}
-              />
-            </Card>
-          </section>
+          <PlottedChecks
+            points={points}
+            digits={market === "crypto" ? stockDigits(market, latest?.price) : undefined}
+            format={market === "crypto" ? formatPrice : undefined}
+          />
           <section className="flex flex-col gap-2">
             <SectionTitle>By day, latest</SectionTitle>
             <DeltaColumns
